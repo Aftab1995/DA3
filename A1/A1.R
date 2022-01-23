@@ -36,7 +36,7 @@ dt <- dt[, w := earnwke/uhours]
 dt <- dt[uhours >= 40]
 
 # Looking at a quick summary of some of the key variables
-datasummary(w + uhours + earnwke + grade92 + age ~ Mean + SD + Min + Max + P25 + P75 + N , data = dt)
+datasummary(w + grade92 + age ~ Mean + SD + Min + Max + P25 + P75 + N , data = dt)
 
 # Finding missing values
 
@@ -106,11 +106,14 @@ dt[marital == 7, married_status := "never married"]
 
 ### Checking interaction between several variables
 
-datasummary( w*gender*factor(race) ~ N + Percent() + Mean, data = dt ) 
+datasummary( w*factor(race)*gender ~ N + Percent() + Mean, data = dt ) 
 # It seems like wage is different based on race and gender
 
-datasummary( w*gender*factor(educ) ~ N + Percent() + Mean, data = dt )
+datasummary( w*factor(educ)*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on education and gender
+
+datasummary( w*factor(educ)*factor(race)*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on education, race and gender
 
 datasummary( w*unionmme*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on being a union member and gender
@@ -136,11 +139,34 @@ datasummary(w*factor(ownchild)*gender  ~ N + Percent() + Mean, data = dt )
 # The variables ownchild and chilpres give the same thing more or less, however, childpres has levels based on ages, so we
 # will use the ownchild variable
 
+datasummary(w*factor(race)*factor(educ)  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on race and education
+
+datasummary(w*factor(race)*factor(married_status)  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on race and married status
+
+
 ###############
 # Regressions #
 ###############
 
 # Running the most basic regression - wage per hour on education
 
-reg1 <- feols(w ~ factor(educ), data = dt , vcov="hetero")
+reg1 <- feols(w ~ educ, data = dt , vcov="hetero")
+# This is the most basic regression with education as the prediction variable. Basic understanding suggests
+# that wage per hour can be higher for higher education levels
+
+reg2 <- feols(w ~ educ + age + agesq + gender, data = dt , vcov="hetero" )
+# This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
+# It also contains the gender variable as wage may be different for both genders.
+
+reg3 <- feols(w ~ educ + age + agesq + gender + race + ownchild + unionme + married_status + stfips + class + prcitship , data = dt , vcov="hetero" )
+# This
+
+
+
+
+
+
+
 
