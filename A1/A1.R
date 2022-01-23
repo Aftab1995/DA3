@@ -5,7 +5,12 @@ rm(list= ls())
 library(data.table)
 library(tidyverse)
 library(modelsummary)
-
+library(fixest)
+library(caret)
+library(skimr)
+library(grid)
+library(glmnet)
+library(cowplot)
 
 # Loading data
 data <- fread("https://osf.io/4ay9x/download")
@@ -26,6 +31,10 @@ str(dt)
 # Creating a new wage per hour variable w
 dt <- dt[, w := earnwke/uhours]
 
+# Filtering on uhours to work on full time employee (minimum 40 hours)
+
+dt <- dt[uhours >= 40]
+
 # Looking at a quick summary of some of the key variables
 datasummary(w + uhours + earnwke + grade92 + age ~ Mean + SD + Min + Max + P25 + P75 + N , data = dt)
 
@@ -33,9 +42,9 @@ datasummary(w + uhours + earnwke + grade92 + age ~ Mean + SD + Min + Max + P25 +
 
 to_filter <- sapply(dt, function(x) sum(is.na(x)))
 to_filter[to_filter > 0]
-# We have 1231 NAs in the ethnic column out of the total 1478 observations. 
+# We have 734 NAs in the ethnic column out of the total 901 observations. 
 # It would perhaps make sense to not include this variable in the regression analysis.
-# This, however, will take out the aspect of race from our regression analysis. 
+# This, however, will take out the aspect of ethnicity from our regression analysis. 
 
 
 # Dropping the variable ethnic
@@ -66,10 +75,72 @@ ggplot(dt, aes(x = grade92, y = w)) +
   geom_smooth(method = 'loess', formula = y ~ x) + 
   ggthemes::theme_economist()
 
-# The two graphs, more or less, show a linear association between w and the two variables
+# The two graphs, more or less, show a linear association between w and the two variables, but using age squared could be helpful
+
+# Creating age squared column
+
+dt <- dt[, agesq := age^2]
+
+# Creating levels for grade92 variable in a new variable educ
+# Since the job is receptionist/information clerks, it makes more sense to drill down into lower education 
+#levels than higher ones, based on the w and grade92 plot above
+
+dt[grade92 <= 38, educ := "no diploma"] # for education levels of less than 12th grade
+dt[grade92 == 39, educ := "high school"] # High school, diploma, GED
+dt[grade92 == 40, educ := "some college"] # college education without degree
+dt[grade92 == 41 | grade92 == 42, educ := "associate degree"] # Some kind of an associate degree
+dt[grade92 == 43, educ := "bachelors"]
+dt[grade92 >= 44, educ := "masters or more"] # master, professional degree, PhD
+
+# Creating factor sex variable
+
+dt[sex == 1, gender := "male"]
+dt[sex == 2, gender := "female"]
+
+# Creating factor variable for marital variable
+
+dt[marital <= 2, married_status := "married"]
+dt[marital <= 6 & marital >= 3, married_status := "separated"]
+dt[marital == 7, married_status := "never married"]
+
+
+### Checking interaction between several variables
+
+datasummary( w*gender*factor(race) ~ N + Percent() + Mean, data = dt ) 
+# It seems like wage is different based on race and gender
+
+datasummary( w*gender*factor(educ) ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on education and gender
+
+datasummary( w*unionmme*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on being a union member and gender
+
+datasummary( w*married_status*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on marriage status and gender
+
+datasummary(w*stfips*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on state and being a union member
+
+datasummary(w*class*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on class and being a union member
+
+datasummary(w*prcitshp*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on citizenship state and being a union member, 
+#especially for non-US citizens and Born in PR or Outlying area
+
+datasummary(w*factor(race)*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on race and being a union member
+
+datasummary(w*factor(ownchild)*gender  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on presence of children below 18 and gender, especially for men
+# The variables ownchild and chilpres give the same thing more or less, however, childpres has levels based on ages, so we
+# will use the ownchild variable
 
 ###############
 # Regressions #
 ###############
 
+# Running the most basic regression - wage per hour on education
+
+reg1 <- feols(w ~ factor(educ), data = dt , vcov="hetero")
 
