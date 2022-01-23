@@ -160,7 +160,7 @@ model2 <- as.formula(w ~ educ + age + agesq + gender)
 # This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
 # It also contains the gender variable as wage may be different for both genders.
 
-model3 <- as.formula(educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class )
+model3 <- as.formula(w ~ educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class )
 # This model contains all the variables that we believe may impact the wage of an individual
 
 model4 <- as.formula(w ~ educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class +
@@ -168,4 +168,46 @@ model4 <- as.formula(w ~ educ + age + agesq + gender + race + ownchild + unionmm
                         race*educ + race*married_status +
                         unionmme*stfips + unionmme*class + unionmme*prcitshp + unionmme*race)
 # This model contains everything plus interaction terms for gender, race, and unionmme
+
+### Running the regressions
+reg1 <- feols(model1, data = dt , vcov="hetero")
+reg2 <- feols(model2, data = dt , vcov="hetero" )
+reg3 <- feols(model3, data = dt , vcov="hetero" )
+reg4 <- feols(model4, data = dt , vcov="hetero" )
+
+
+
+# evaluation of the models: using all the sample
+fitstat_register("k", function(x){length( x$coefficients ) - 1}, "No. Variables")           
+etable( reg1 , reg2 , reg3 , reg4 , fitstat = c('aic','bic','rmse','r2','n','k'), keepFactors = TRUE )
+
+
+#####################
+# Cross-validation for better evaluation of predictive performance
+# Simple k-fold cross validation setup:
+# 1) Used method for estimating the model: "lm" - linear model (y_hat = b0+b1*x1+b2*x2 + ...)
+# 2) set number of folds to use (must be less than the no. observations)
+k <- 4
+
+# We use the 'train' function which allows many type of model training -> use cross-validation
+set.seed(111)
+cv1 <- train(model1, dt, method = "lm", trControl = trainControl(method = "cv", number = k))
+
+# Check the output:
+cv1
+summary(cv1)
+cv1$results
+cv1$resample
+
+set.seed(111)
+cv2 <- train(model2, dt, method = "lm", trControl = trainControl(method = "cv", number = k))
+set.seed(111)
+cv3 <- train(model3, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
+set.seed(111)
+cv4 <- train(model4, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
+
+
+
+
+
 
