@@ -150,23 +150,22 @@ datasummary(w*factor(race)*factor(married_status)  ~ N + Percent() + Mean, data 
 # Regressions #
 ###############
 
-# Running the most basic regression - wage per hour on education
+####Setting up the models
 
-reg1 <- feols(w ~ educ, data = dt , vcov="hetero")
-# This is the most basic regression with education as the prediction variable. Basic understanding suggests
+model1 <- as.formula(w ~ educ)
+# This is the most basic model with education as the prediction variable. Basic understanding suggests
 # that wage per hour can be higher for higher education levels
 
-reg2 <- feols(w ~ educ + age + agesq + gender, data = dt , vcov="hetero" )
+model2 <- as.formula(w ~ educ + age + agesq + gender)
 # This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
 # It also contains the gender variable as wage may be different for both genders.
 
-reg3 <- feols(w ~ educ + age + agesq + gender + race + ownchild + unionme + married_status + stfips + class + prcitship , data = dt , vcov="hetero" )
-# This
+model3 <- as.formula(educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class )
+# This model contains all the variables that we believe may impact the wage of an individual
 
-
-
-
-
-
-
+model4 <- as.formula(w ~ educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class +
+                        ownchild*gender + gender*race + gender*educ + gender*unionmme + gender*married_status + gender*race*educ +
+                        race*educ + race*married_status +
+                        unionmme*stfips + unionmme*class + unionmme*prcitshp + unionmme*race)
+# This model contains everything plus interaction terms for gender, race, and unionmme
 
