@@ -206,8 +206,51 @@ cv3 <- train(model3, dt, method = "lm", trControl = trainControl(method = "cv", 
 set.seed(111)
 cv4 <- train(model4, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
 
+# Calculate RMSE for each fold and the average RMSE as well
+cv <- c("cv1", "cv2", "cv3", "cv4")
+rmse_cv <- c()
+
+for(i in 1:length(cv)){
+  rmse_cv[i] <- sqrt((get(cv[i])$resample[[1]][1]^2 +
+                        get(cv[i])$resample[[1]][2]^2 +
+                        get(cv[i])$resample[[1]][3]^2 +
+                        get(cv[i])$resample[[1]][4]^2)/4)
+}
 
 
+# summarize results
+cv_mat <- data.frame(rbind(cv1$resample[4], "Average"),
+                     rbind(cv1$resample[1], rmse_cv[1]),
+                     rbind(cv2$resample[1], rmse_cv[2]),
+                     rbind(cv3$resample[1], rmse_cv[3]),
+                     rbind(cv4$resample[1], rmse_cv[4])
+)
 
+colnames(cv_mat)<-c("Resample","Model1", "Model2", "Model3", "Model4")
+cv_mat 
 
+# Show model complexity and out-of-sample RMSE performance
+m_comp <- c()
+models <- c("reg1", "reg2", "reg3", "reg4")
+for( i in 1 : length(cv) ){
+  m_comp[ i ] <- length( get( models[i] )$coefficient  - 1 ) 
+}
+
+m_comp <- tibble( model = models , 
+                  complexity = m_comp,
+                  RMSE = rmse_cv )
+
+ggplot( m_comp , aes( x = complexity , y = RMSE ) ) +
+  geom_point(color='red',size=2) +
+  geom_line(color='blue',size=0.5)+
+  labs(x='Number of explanatory variables',y='Averaged RMSE on test samples',
+       title='Prediction performance and model compexity') +
+  theme_bw()
+
+# plotting results
+ggplot(dt, aes(x=predict(reg2, dt), y=w)) + 
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, size = 0.5) +
+  scale_x_continuous(limits = c(0,60)) + 
+  scale_y_continuous(limits = c(0,60))
 
