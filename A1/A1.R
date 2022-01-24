@@ -11,6 +11,7 @@ library(skimr)
 library(grid)
 library(glmnet)
 library(cowplot)
+library(gridExtra)
 
 # Loading data
 data <- fread("https://osf.io/4ay9x/download")
@@ -116,7 +117,7 @@ dt[marital == 7, married_status := "never married"]
 dt <- dt[race == 1, race_dummy := "white"]
 dt <- dt[race != 1, race_dummy := "other"]
 
-### Checking interaction between several variables
+########### Checking interaction between several variables
 
 
 datasummary( w*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt ) 
@@ -153,7 +154,7 @@ educ_gender <- ggplot(dt, aes(x = factor(educ), y = w,
   theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
 ########
 
-datasummary( w*factor(educ)*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt )
+datasummary( w*educ*race_dummy*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on education, race_dummy and gender
 
 educ_race <- ggplot(dt, aes(x = factor(educ), y = w,
@@ -325,23 +326,6 @@ ownchild_gender <- ggplot(dt, aes(x = factor(ownchild) , y = w,
 
 ############
 
-datasummary(w*race_dummy*factor(educ)  ~ N + Percent() + Mean, data = dt )
-# It seems like wage is different based on race_dummy and education, especially for higher education levels
-
-race_educ <- ggplot(dt, aes(x = educ , y = w,
-                                  fill = race_dummy, color=race_dummy)) +
-  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
-  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
-  scale_color_manual(name="",
-                     values=c('red','blue')) +
-  scale_fill_manual(name="",
-                    values=c('red','blue')) +
-  labs(x = "Education",y = "Wage per Hour (USD)")+
-  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
-  ggthemes::theme_economist() +
-  theme(legend.position = c(0.40,0.85), axis.text.x = element_text(angle=45, vjust=.5))
-
-###########
 
 datasummary(w*race_dummy*married_status  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on race_dummy and married status, so no need for an interaction for this
@@ -470,4 +454,11 @@ ggplot(dt, aes(x=predict(reg3, dt), y=w)) +
 
 ###################
 
+## Arranging interaction plots into a grid for better presentation
 
+grid.arrange(educ_gender, educ_race, race_gender, race_married, 
+             nrow = 2, ncol = 2)
+
+grid.arrange(married_gender, ownchild_gender, union_gender, unionmme_class, nrow = 2, ncol = 2)
+
+grid.arrange(unionmme_prborn, unionmme_race, unionmme_region, nrow = 2, ncol = 2)
