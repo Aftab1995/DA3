@@ -47,6 +47,7 @@ to_filter[to_filter > 0]
 # This, however, will take out the aspect of ethnicity from our regression analysis. 
 
 
+
 # Dropping the variable ethnic
 
 dt <- dt[,ethnic := NULL]
@@ -117,20 +118,93 @@ dt <- dt[race != 1, race_dummy := "other"]
 
 ### Checking interaction between several variables
 
+
 datasummary( w*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt ) 
-# It seems like wage is not very different based on race_dummy and gender, so no need for an interaction term for this
+# It seems like wage is different based on race_dummy and gender
+
+race_gender <- ggplot(dt, aes(x = factor(race_dummy), y = w,
+               fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Race",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85))
+##########
 
 datasummary( w*factor(educ)*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on education and gender
 
+educ_gender <- ggplot(dt, aes(x = factor(educ), y = w,
+                              fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Education",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 70), breaks = seq(0,70, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+########
+
 datasummary( w*factor(educ)*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on education, race_dummy and gender
+
+educ_race <- ggplot(dt, aes(x = factor(educ), y = w,
+                              fill = factor(race_dummy), color=factor(race_dummy))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Education",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 50), breaks = seq(0,50, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+########
 
 datasummary( w*unionmme*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on being a union member and gender
 
+union_gender <- ggplot(dt, aes(x = unionmme, y = w,
+                            fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Union Membership",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 50), breaks = seq(0,50, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+##############
+
 datasummary( w*married_status*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on marriage status and gender
+
+married_gender <- ggplot(dt, aes(x = married_status, y = w,
+                               fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Married Status",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+##############
 
 datasummary(w*stfips*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on state and being a union member. However, since the number of states is around 50, 
@@ -138,16 +212,49 @@ datasummary(w*stfips*unionmme  ~ N + Percent() + Mean, data = dt )
 
 # Since there are too many states and it is difficult to have interaction terms for those, I am creating regions with multiple states, as per the US BLS
 
-dt <- dt[stfips %in% c("WA", "OR", "MT", "ID", "WY", "NV", "UT", "CO", "AZ", "NM", "HI", "AK"), region := "west"]
+dt <- dt[stfips %in% c("WA", "OR", "MT", "ID", "WY", "NV", "UT", "CO", "AZ", "NM", "HI", "AK", "CA"), region := "west"]
 dt <- dt[stfips %in% c("ND", "SD", "NE", "KS", "MN", "IA", "MO", "WI", "IL", "IN", "MI", "OH"), region := "mid-west"]
-dt <- dt[stfips %in% c("OK", "TX", "AR", "LA", "KY", "TN", "MS", "AL", "WV", "VA", "NC", "SC", "GA", "FL", "Dc","MD","DE"), region := "south"]
+dt <- dt[stfips %in% c("OK", "TX", "AR", "LA", "KY", "TN", "MS", "AL", "WV", "VA", "NC", "SC", "GA", "FL", "DC","MD","DE"), region := "south"]
 dt <- dt[stfips %in% c("PA", "NY", "VT", "NH", "ME","MA","RI","CT","NJ"), region := "north-east"]
+
+# Above regions are as per https://www.businessinsider.com/regions-of-united-states-2018-5#-and-the-west-4
+
 
 datasummary(w*region*unionmme  ~ N + Percent() + Mean, data = dt )
 # Since there are difference in wages for regions and being a unionmme, we will use an interaction term for this
 
+unionmme_region <- ggplot(dt, aes(x = region , y = w,
+                                 fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Region",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
+
 datasummary(w*class*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on class and being a union member
+
+unionmme_class <- ggplot(dt, aes(x = class , y = w,
+                                  fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Class",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
 
 datasummary(w*prcitshp*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on citizenship state and being a union member, 
@@ -162,23 +269,95 @@ dt <- dt[prcitshp != "Native, Born in PR or US Outlying Area", pr_born := "no"]
 datasummary(w*pr_born*unionmme  ~ N + Percent() + Mean, data = dt )
 # There is significant difference in mean wage based on pr_born and being a union member
 
+unionmme_prborn <- ggplot(dt, aes(x = pr_born , y = w,
+                                 fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Born in PR or US Outlying Area",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
+
 datasummary(w*factor(race_dummy)*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is not very different based on race_dummy and being a union member, so no need for an interaction
+
+unionmme_race <- ggplot(dt, aes(x = race_dummy , y = w,
+                                  fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Race",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
 
 datasummary(w*factor(ownchild)*gender  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on presence of children below 18 and gender, especially for men
 # The variables ownchild and chilpres give the same thing more or less, however, childpres has levels based on ages, so we
 # will use the ownchild variable
 
-# Since the count of observations for ownchild greater than or equal to 4 are very small, will drop those out as outliers
+# Since the count of observations for ownchild greater than or equal to 4 are very small, will drop those out as extreme values
 dt <- dt[ownchild <= 3]
 
-datasummary(w*factor(race_dummy)*factor(educ)  ~ N + Percent() + Mean, data = dt )
+ownchild_gender <- ggplot(dt, aes(x = factor(ownchild) , y = w,
+                                fill = gender, color=gender)) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Number of Children",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.35,0.85))
+
+############
+
+datasummary(w*race_dummy*factor(educ)  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on race_dummy and education, especially for higher education levels
 
-datasummary(w*factor(race_dummy)*factor(married_status)  ~ N + Percent() + Mean, data = dt )
-# It seems like wage is not very different based on race_dummy and married status, so no need for an interaction for this
+race_educ <- ggplot(dt, aes(x = educ , y = w,
+                                  fill = race_dummy, color=race_dummy)) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Education",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.40,0.85), axis.text.x = element_text(angle=45, vjust=.5))
 
+###########
+
+datasummary(w*race_dummy*married_status  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on race_dummy and married status, so no need for an interaction for this
+
+race_married <- ggplot(dt, aes(x = married_status , y = w,
+                            fill = race_dummy, color=race_dummy)) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Married Status",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.40,0.85), axis.text.x = element_text(angle=45, vjust=.5))
 
 ###############
 # Regressions #
@@ -194,12 +373,12 @@ model2 <- as.formula(w ~ educ + age + agesq + gender)
 # This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
 # It also contains the gender variable as wage may be different for both genders.
 
-model3 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class + region)
-# This model contains all the variables that we believe may impact the wage of an individual
+model3 <- as.formula(w ~ educ + age + agesq + gender + gender*educ + race_dummy + ownchild + unionmme + married_status + class + pr_born + class + region)
+# This model contains all the variables that we believe may impact the wage of an individual plus the interaction term for gender and education
 
 model4 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class + region + 
                         ownchild*gender + gender*educ + gender*unionmme + gender*married_status + gender*race_dummy*educ +
-                        race_dummy*educ +
+                        race_dummy*educ + race_dummy*gender + race_dummy*married_status +
                         unionmme*class + pr_born*unionmme + region*unionmme)
 # This model contains everything plus interaction terms for gender, race_dummy, and unionmme
 
@@ -209,7 +388,7 @@ reg2 <- feols(model2, data = dt , vcov="hetero" )
 reg3 <- feols(model3, data = dt , vcov="hetero" )
 reg4 <- feols(model4, data = dt , vcov="hetero" )
 
-
+summary(reg3)
 
 # evaluation of the models: using all the sample
 fitstat_register("k", function(x){length( x$coefficients ) - 1}, "No. Variables")           
@@ -282,10 +461,13 @@ ggplot( m_comp , aes( x = complexity , y = RMSE ) ) +
   ggthemes::theme_economist()
 
 # plotting results
-ggplot(dt, aes(x=predict(reg2, dt), y=w)) + 
+ggplot(dt, aes(x=predict(reg3, dt), y=w)) + 
   geom_point(alpha = 0.5) +
   geom_abline(intercept = 0, slope = 1, size = 0.5) +
   scale_x_continuous(limits = c(0,30)) + 
   scale_y_continuous(limits = c(0,60)) +
   ggthemes::theme_economist()
+
+###################
+
 
