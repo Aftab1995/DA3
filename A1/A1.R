@@ -81,6 +81,13 @@ ggplot(dt, aes(x = grade92, y = w)) +
 
 dt <- dt[, agesq := age^2]
 
+# Dropping the observations with PhD education as it doesn't make sense for a doctorate to be a receptionist or an information clerk
+dt <- dt[grade92 != 46]
+
+# Also dropping the observations with a professional degree for the same reasons
+
+dt <- dt[grade92 != 45]
+
 # Creating levels for grade92 variable in a new variable educ
 # Since the job is receptionist/information clerks, it makes more sense to drill down into lower education 
 #levels than higher ones, based on the w and grade92 plot above
@@ -90,7 +97,7 @@ dt[grade92 == 39, educ := "high school"] # High school, diploma, GED
 dt[grade92 == 40, educ := "some college"] # college education without degree
 dt[grade92 == 41 | grade92 == 42, educ := "associate degree"] # Some kind of an associate degree
 dt[grade92 == 43, educ := "bachelors"]
-dt[grade92 >= 44, educ := "masters or more"] # master, professional degree, PhD
+dt[grade92 == 44, educ := "masters"] # master, professional degree, PhD
 
 # Creating factor sex variable
 
@@ -103,17 +110,21 @@ dt[marital <= 2, married_status := "married"]
 dt[marital <= 6 & marital >= 3, married_status := "separated"]
 dt[marital == 7, married_status := "never married"]
 
+# Dividing race into white and other
+
+dt <- dt[race == 1, race_dummy := "white"]
+dt <- dt[race != 1, race_dummy := "other"]
 
 ### Checking interaction between several variables
 
-datasummary( w*factor(race)*gender ~ N + Percent() + Mean, data = dt ) 
-# It seems like wage is different based on race and gender
+datasummary( w*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt ) 
+# It seems like wage is not very different based on race_dummy and gender, so no need for an interaction term for this
 
 datasummary( w*factor(educ)*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on education and gender
 
-datasummary( w*factor(educ)*factor(race)*gender ~ N + Percent() + Mean, data = dt )
-# It seems like wage is different based on education, race and gender
+datasummary( w*factor(educ)*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on education, race_dummy and gender
 
 datasummary( w*unionmme*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on being a union member and gender
@@ -122,7 +133,8 @@ datasummary( w*married_status*gender ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on marriage status and gender
 
 datasummary(w*stfips*unionmme  ~ N + Percent() + Mean, data = dt )
-# It seems like wage is different based on state and being a union member
+# It seems like wage is different based on state and being a union member. However, since the number of states is around 50, 
+# adding an interaction between states and uionmme will blow up the number of variable son the right hand side
 
 datasummary(w*class*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on class and being a union member
@@ -131,19 +143,31 @@ datasummary(w*prcitshp*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on citizenship state and being a union member, 
 #especially for non-US citizens and Born in PR or Outlying area
 
-datasummary(w*factor(race)*unionmme  ~ N + Percent() + Mean, data = dt )
-# It seems like wage is different based on race and being a union member
+# based on above interaction, creating a new dummy for born in PR or outlying US to interact it with unionmme
+
+dt <- dt[prcitshp == "Native, Born in PR or US Outlying Area", pr_born := "yes"]
+dt <- dt[prcitshp != "Native, Born in PR or US Outlying Area", pr_born := "no"]
+
+# Checking the interaction of this new variable with unionmme
+datasummary(w*pr_born*unionmme  ~ N + Percent() + Mean, data = dt )
+# There is significant difference in mean wage based on pr_born and being a union member
+
+datasummary(w*factor(race_dummy)*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is not very different based on race_dummy and being a union member, so no need for an interaction
 
 datasummary(w*factor(ownchild)*gender  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on presence of children below 18 and gender, especially for men
 # The variables ownchild and chilpres give the same thing more or less, however, childpres has levels based on ages, so we
 # will use the ownchild variable
 
-datasummary(w*factor(race)*factor(educ)  ~ N + Percent() + Mean, data = dt )
-# It seems like wage is different based on race and education
+# Since the count of observations for ownchild greater than or equal to 4 are very small, will drop those out as outliers
+dt <- dt[ownchild <= 3]
 
-datasummary(w*factor(race)*factor(married_status)  ~ N + Percent() + Mean, data = dt )
-# It seems like wage is different based on race and married status
+datasummary(w*factor(race_dummy)*factor(educ)  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on race_dummy and education, especially for higher education levels
+
+datasummary(w*factor(race_dummy)*factor(married_status)  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is not very different based on race_dummy and married status, so no need for an interaction for this
 
 
 ###############
@@ -160,14 +184,14 @@ model2 <- as.formula(w ~ educ + age + agesq + gender)
 # This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
 # It also contains the gender variable as wage may be different for both genders.
 
-model3 <- as.formula(w ~ educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class )
+model3 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class )
 # This model contains all the variables that we believe may impact the wage of an individual
 
-model4 <- as.formula(w ~ educ + age + agesq + gender + race + ownchild + unionmme + married_status + stfips + class + prcitshp + ind02 + class +
-                        ownchild*gender + gender*race + gender*educ + gender*unionmme + gender*married_status + gender*race*educ +
-                        race*educ + race*married_status +
-                        unionmme*stfips + unionmme*class + unionmme*prcitshp + unionmme*race)
-# This model contains everything plus interaction terms for gender, race, and unionmme
+model4 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class +
+                        ownchild*gender + gender*educ + gender*unionmme + gender*married_status + gender*race_dummy*educ +
+                        race_dummy*educ +
+                        unionmme*class + pr_born*unionmme )
+# This model contains everything plus interaction terms for gender, race_dummy, and unionmme
 
 ### Running the regressions
 reg1 <- feols(model1, data = dt , vcov="hetero")
@@ -245,12 +269,13 @@ ggplot( m_comp , aes( x = complexity , y = RMSE ) ) +
   geom_line(color='blue',size=0.5)+
   labs(x='Number of explanatory variables',y='Averaged RMSE on test samples',
        title='Prediction performance and model compexity') +
-  theme_bw()
+  ggthemes::theme_economist()
 
 # plotting results
 ggplot(dt, aes(x=predict(reg2, dt), y=w)) + 
-  geom_point() +
+  geom_point(alpha = 0.5) +
   geom_abline(intercept = 0, slope = 1, size = 0.5) +
-  scale_x_continuous(limits = c(0,60)) + 
-  scale_y_continuous(limits = c(0,60))
+  scale_x_continuous(limits = c(0,30)) + 
+  scale_y_continuous(limits = c(0,60)) +
+  ggthemes::theme_economist()
 
