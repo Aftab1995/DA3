@@ -136,6 +136,16 @@ datasummary(w*stfips*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on state and being a union member. However, since the number of states is around 50, 
 # adding an interaction between states and uionmme will blow up the number of variable son the right hand side
 
+# Since there are too many states and it is difficult to have interaction terms for those, I am creating regions with multiple states, as per the US BLS
+
+dt <- dt[stfips %in% c("WA", "OR", "MT", "ID", "WY", "NV", "UT", "CO", "AZ", "NM", "HI", "AK"), region := "west"]
+dt <- dt[stfips %in% c("ND", "SD", "NE", "KS", "MN", "IA", "MO", "WI", "IL", "IN", "MI", "OH"), region := "mid-west"]
+dt <- dt[stfips %in% c("OK", "TX", "AR", "LA", "KY", "TN", "MS", "AL", "WV", "VA", "NC", "SC", "GA", "FL", "Dc","MD","DE"), region := "south"]
+dt <- dt[stfips %in% c("PA", "NY", "VT", "NH", "ME","MA","RI","CT","NJ"), region := "north-east"]
+
+datasummary(w*region*unionmme  ~ N + Percent() + Mean, data = dt )
+# Since there are difference in wages for regions and being a unionmme, we will use an interaction term for this
+
 datasummary(w*class*unionmme  ~ N + Percent() + Mean, data = dt )
 # It seems like wage is different based on class and being a union member
 
@@ -184,13 +194,13 @@ model2 <- as.formula(w ~ educ + age + agesq + gender)
 # This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
 # It also contains the gender variable as wage may be different for both genders.
 
-model3 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class )
+model3 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class + region)
 # This model contains all the variables that we believe may impact the wage of an individual
 
-model4 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class +
+model4 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class + region + 
                         ownchild*gender + gender*educ + gender*unionmme + gender*married_status + gender*race_dummy*educ +
                         race_dummy*educ +
-                        unionmme*class + pr_born*unionmme )
+                        unionmme*class + pr_born*unionmme + region*unionmme)
 # This model contains everything plus interaction terms for gender, race_dummy, and unionmme
 
 ### Running the regressions
