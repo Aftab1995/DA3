@@ -1,0 +1,593 @@
+---
+title: "DA3 - A1"
+author: "Aftab"
+output: pdf_document
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+rm(list= ls())
+
+# Loading Libraries
+library(tinytex)
+library(data.table)
+library(tidyverse)
+library(modelsummary)
+library(fixest)
+library(caret)
+library(skimr)
+library(grid)
+library(glmnet)
+library(cowplot)
+library(gridExtra)
+library(huxtable)
+library(kableExtra)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Loading data
+#data <- fread("https://osf.io/4ay9x/download")
+#saveRDS(data, "data.RDS")
+readRDS('data.RDS', refhook = NULL)
+```
+
+## Introduction
+This paper tried to build a prediction model for *Receptionists and Information Clerks* in the U.S. from the data obtained from [OSF](https://osf.io/4ay9x/download). The paper has used OLS regressions to build the prediction models and a 5-fold cross-validation to arrive at the best model using the individual models' average RMSE; in total, 4 models were built that were initially run on the full sample and then were split into 5 folds for training and cross-validation.
+
+## Data Engineering
+
+Starting with the sample, the paper focused on the code 5400 that refers to receptionists and information clerks in the dataset. To make sure that an apples-to-apples comparison was being made, the variable wage per hour (*w*) was created. The sample was then filtered to contain observations with worked hours of 40 or more per week. Observations were also filtered on age greater than or equal to 18. These two filters were made to proxy for full-time workers as per minimum working hours and minimum legal age for working in the country.
+
+The sample size was initially 1478, which reduced to 898 observations after the above mentioned filters. The observations were then filtered to check for number of NAs in the sample; the variable ethnic returned 731 NAs and was hence dropped. That said, the race variable was available, which was coded into a binary variable of 'white' and 'other' races. Similarly, the education variable 'grade92' was coded into a factor variable (educ) of 6 levels, starting from 'no diploma' to 'master' degree. The observations with a PhD and professional degree were dropped for two reasons; the number of observations in total for both were 6, it is not a common occurrence for PhD and professional degree holders to choose this occupation.
+
+Other factors such as marriage status were clubbed together into a factor variable containing 'separated, never married, married'. Gender was put into a binary variable of male and female. Individual states were clubbed into 4 regions as per the BLS division of the U.S.; 'west, mid-west, south, east'. This decision was made to make it feasible to interact it with other variables in the sample. Similarly, citizenship or birth region was divided into born in 'Native, Born in PR or US Outlying Area' or not compared to its original variable that contained 5 different types of entries. 
+
+## Model Building
+In total, 4 models were built with model 1 being the simplest and model 4 being the most complex. Whereas, for the y variable, wage/hour was taken in absolute terms, even though its distribution mimicked a log-normal distribution; purely for the simplicity of the models. For the RHS variables, the core focus was on age which was considered a proxy for work experience, education being a proxy for skill, and gender to cater for gender-based wage differences.
+
+Model 1 only contained education as the predicting variable but model 2 contained education, age, age-squared, and gender as the predicting variables. Second-degree polynomial of age was used to capture the quadratic association of age and wage per hour. For model 3, it included all variable from model 2 plus race and marriage status dummy variables. This model also included the interaction terms necessary to capture wage differences arising from individuals from different races, education levels, and marriage status. These interaction terms were added based on statistical analysis; conditional mean wage per hour were looked at for the interacted variables and where the difference seemed significant, only those were added. The appendix contains box plots that were used to check the significance of all the interactions.
+
+Model 4 was the most complicated with model 3 RHS variables plus the additional variables, union membership, type of work organization, place of birth, region of work, number of children below 18, along with the necessary interaction terms as per the above mentioned methodology
+
+## Analysis
+The models were first run on the full sample and then each model was run using a 5-fold cross-validation methodology. The resulting RMSE and BIC of the full sample regressions and cross-validated regressions are shown in the appendix. 
+
+As per the full sample regressions, model 4 had the lowest RMSE, however, it can be argued that it could be because of the highest number of predictors in the model. The RMSE for the rest of the models follow a similar pattern with model 1 having the highest RMSE followed by model 2 and then model 3. Hence, looking at the BIC of these models could reveal another perspective as it penalizes for the models for additional number of RHS variables. As per BIC, the best model run on the full sample was model 2, followed by model 3, model 1 and then model 4. Based only on these results, it can be argued that model 2 is the best.
+
+That said, averaged RMSE on test samples from the 5-fold cross-validation methodology, shown in the appendix below, suggests that model 4 is the best with the lowest averaged RMSE. However, when both complexity in terms of RHS variables and averaged RMSE, the paper suggests using model 2. The difference between model 2 and model 3 average RMSE is only around 0.2, and difference between model 2 and model 4 average RMSE is only around 0.5. When looked at these numbers from the perspective of dollar wage per hour, it can be argued that the results are not very different. Hence, this paper suggests after utilizing above-mentioned methodologies that model 2 can be best for prediction of wage per hour for the chosen occupation. Additionally, it is important that external validity is considered when using this model because of difference in time and space.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#  Using the occupational code 5400 - Receptionists and information clerks
+
+# Filtering the data to have code 5400 observations only
+dt <- data[occ2012 == 5400]
+
+# Creating a new wage per hour variable w
+dt <- dt[, w := earnwke/uhours]
+
+# Filtering on uhours to work on full time employee (minimum 40 hours)
+
+dt <- dt[uhours >= 40]
+
+# Filtering for individuals aged 18 and plus who are legally allowed to work full time
+
+dt <-  dt[age >= 18]
+
+# Finding missing values
+
+to_filter <- sapply(dt, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+# We have 734 NAs in the ethnic column out of the total 901 observations. 
+# It would perhaps make sense to not include this variable in the regression analysis.
+# This, however, will take out the aspect of ethnicity from our regression analysis. That said, we do have a race column that has better observations
+
+
+# Dropping the variable ethnic
+
+dt <- dt[,ethnic := NULL]
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Looking at the distrbitution of wage per hour variable
+
+dist_w <- ggplot(dt) +
+  geom_density(aes(x=w)) +
+  ggthemes::theme_economist()
+
+# The distribution has a long right tail, hence also looking at the distribution of log of the variable
+
+dist_lnw <- ggplot(dt) +
+  geom_density(aes(x=log(w))) +
+  ggthemes::theme_economist()
+
+# Looking quickly at some relationships between wage per hour and age, and wage per hour and grade92(educational degree)
+
+plot_agew <- ggplot(dt, aes(x = age, y = w)) +
+  geom_point() +
+  geom_smooth(method = 'loess', formula = y ~ x) + 
+  ggthemes::theme_economist()
+
+plot_grade92w <- ggplot(dt, aes(x = grade92, y = w)) +
+  geom_point() +
+  geom_smooth(method = 'loess', formula = y ~ x) + 
+  ggthemes::theme_economist()
+
+# The two graphs, more or less, show a linear association between w and the two variables, but using age squared could be helpful
+
+# Creating age squared column
+
+dt <- dt[, agesq := age^2]
+
+# Dropping the observations with PhD education as it doesn't make sense for a doctorate to be a receptionist or an information clerk, additionally, number of observations are only 2
+dt <- dt[grade92 != 46]
+
+# Also dropping the observations with a professional degree for the same reasons
+
+dt <- dt[grade92 != 45]
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Creating levels for grade92 variable in a new variable educ
+# Since the job is receptionist/information clerks, it makes more sense to drill down into lower education 
+#levels than higher ones, based on the w and grade92 plot above
+
+dt[grade92 <= 38, educ := "no diploma"] # for education levels of less than 12th grade
+dt[grade92 == 39, educ := "high school"] # High school, diploma, GED
+dt[grade92 == 40, educ := "some college"] # college education without degree
+dt[grade92 == 41 | grade92 == 42, educ := "associate degree"] # Some kind of an associate degree
+dt[grade92 == 43, educ := "bachelors"]
+dt[grade92 == 44, educ := "masters"] # master, professional degree, PhD
+
+# Creating factor sex variable
+
+dt[sex == 1, gender := "male"]
+dt[sex == 2, gender := "female"]
+
+# Creating factor variable for marital variable
+
+dt[marital <= 2, married_status := "married"]
+dt[marital <= 6 & marital >= 3, married_status := "separated"]
+dt[marital == 7, married_status := "never married"]
+
+# Dividing race into white and other
+
+dt <- dt[race == 1, race_dummy := "white"]
+dt <- dt[race != 1, race_dummy := "other"]
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+########### Checking interaction between several variables
+## Also modified some of the RHS variables based on running the data summaries
+
+
+ds_1 <- datasummary( w*factor(race_dummy)*gender ~ N + Percent() + Mean, data = dt ) 
+# It seems like wage is different based on race_dummy and gender
+
+race_gender <- ggplot(dt, aes(x = factor(race_dummy), y = w,
+               fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Race",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.65,0.85))
+##########
+
+ds_2 <-datasummary( w*factor(educ)*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on education and gender
+
+educ_gender <- ggplot(dt, aes(x = factor(educ), y = w,
+                              fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Education",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 70), breaks = seq(0,70, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+########
+
+ds_3 <- datasummary( w*educ*race_dummy*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on education, race_dummy and gender
+
+educ_race <- ggplot(dt, aes(x = factor(educ), y = w,
+                              fill = factor(race_dummy), color=factor(race_dummy))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Education",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 50), breaks = seq(0,50, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+########
+
+ds_4 <- datasummary( w*unionmme*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on being a union member and gender
+
+union_gender <- ggplot(dt, aes(x = unionmme, y = w,
+                            fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Union Membership",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 50), breaks = seq(0,50, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+##############
+
+ds_5 <- datasummary( w*married_status*gender ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on marriage status and gender
+
+married_gender <- ggplot(dt, aes(x = married_status, y = w,
+                               fill = factor(gender), color=factor(gender))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Married Status",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+##############
+
+ds_6 <- datasummary(w*stfips*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on state and being a union member. However, since the number of states is around 50, 
+# adding an interaction between states and uionmme will blow up the number of variable son the right hand side
+
+# Since there are too many states and it is difficult to have interaction terms for those, I am creating regions with multiple states, as per the US BLS
+
+dt <- dt[stfips %in% c("WA", "OR", "MT", "ID", "WY", "NV", "UT", "CO", "AZ", "NM", "HI", "AK", "CA"), region := "west"]
+dt <- dt[stfips %in% c("ND", "SD", "NE", "KS", "MN", "IA", "MO", "WI", "IL", "IN", "MI", "OH"), region := "mid-west"]
+dt <- dt[stfips %in% c("OK", "TX", "AR", "LA", "KY", "TN", "MS", "AL", "WV", "VA", "NC", "SC", "GA", "FL", "DC","MD","DE"), region := "south"]
+dt <- dt[stfips %in% c("PA", "NY", "VT", "NH", "ME","MA","RI","CT","NJ"), region := "north-east"]
+
+# Above regions are as per https://www.businessinsider.com/regions-of-united-states-2018-5#-and-the-west-4
+
+
+ds_7 <- datasummary(w*region*unionmme  ~ N + Percent() + Mean, data = dt )
+# Since there are difference in wages for regions and being a unionmme, we will use an interaction term for this
+
+unionmme_region <- ggplot(dt, aes(x = region , y = w,
+                                 fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Region",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
+
+ds_8 <- datasummary(w*class*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on class and being a union member
+
+unionmme_class <- ggplot(dt, aes(x = class , y = w,
+                                  fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Class",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
+
+ds_9 <- datasummary(w*prcitshp*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on citizenship state and being a union member, 
+#especially for non-US citizens and Born in PR or Outlying area
+
+# based on above interaction, creating a new dummy for born in PR or outlying US to interact it with unionmme
+
+dt <- dt[prcitshp == "Native, Born in PR or US Outlying Area", pr_born := "yes"]
+dt <- dt[prcitshp != "Native, Born in PR or US Outlying Area", pr_born := "no"]
+
+# Checking the interaction of this new variable with unionmme
+ds_10 <- datasummary(w*pr_born*unionmme  ~ N + Percent() + Mean, data = dt )
+# There is significant difference in mean wage based on pr_born and being a union member
+
+unionmme_prborn <- ggplot(dt, aes(x = pr_born , y = w,
+                                 fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Born in PR or US Outlying Area",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
+
+ds_11 <- datasummary(w*factor(race_dummy)*unionmme  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is not very different based on race_dummy and being a union member, so no need for an interaction
+
+unionmme_race <- ggplot(dt, aes(x = race_dummy , y = w,
+                                  fill = factor(unionmme), color=factor(unionmme))) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Race",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.15,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+###########
+
+ds_12 <- datasummary(w*factor(ownchild)*gender  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on presence of children below 18 and gender, especially for men
+# The variables ownchild and chilpres give the same thing more or less, however, childpres has levels based on ages, so we
+# will use the ownchild variable
+
+# Since the count of observations for ownchild greater than or equal to 4 are very small, will drop those out as extreme values
+dt <- dt[ownchild <= 3]
+
+ownchild_gender <- ggplot(dt, aes(x = factor(ownchild) , y = w,
+                                fill = gender, color=gender)) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Number of Children",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.55,0.85))
+
+############
+
+
+ds_13 <- datasummary(w*race_dummy*married_status  ~ N + Percent() + Mean, data = dt )
+# It seems like wage is different based on race_dummy and married status, so no need for an interaction for this
+
+race_married <- ggplot(dt, aes(x = married_status , y = w,
+                            fill = race_dummy, color=race_dummy)) +
+  geom_boxplot(alpha=0.8, na.rm=T, outlier.shape = NA, width = 0.8) +
+  stat_boxplot(geom = "errorbar", width = 0.8, size = 0.3, na.rm=T)+
+  scale_color_manual(name="",
+                     values=c('red','blue')) +
+  scale_fill_manual(name="",
+                    values=c('red','blue')) +
+  labs(x = "Married Status",y = "Wage per Hour (USD)")+
+  scale_y_continuous(expand = c(0.01,0.01), limits=c(0, 40), breaks = seq(0,40, 10))+
+  ggthemes::theme_economist() +
+  theme(legend.position = c(0.40,0.85), axis.text.x = element_text(angle=45, vjust=.5))
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+###############
+# Regressions #
+###############
+
+####Setting up the models
+
+model1 <- as.formula(w ~ educ)
+# This is the most basic model with education as the prediction variable. Basic understanding suggests
+# that wage per hour can be higher for higher education levels
+
+model2 <- as.formula(w ~ educ + age + agesq + gender)
+# This regression contains education, age, and square term of age to factor in the change in wage levels with a higher age.
+# It also contains the gender variable as wage may be different for both genders.
+
+model3 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + married_status +
+                       gender*married_status  + gender*educ + gender*race_dummy*educ  + race_dummy*gender +
+                       + race_dummy*married_status + + gender*married_status)
+# This model contains all the variables that we believe may impact the wage of an individual plus the interaction term for gender and education
+
+model4 <- as.formula(w ~ educ + age + agesq + gender + race_dummy + ownchild + unionmme + married_status + class + pr_born + class + region + 
+                        ownchild*gender + gender*educ + gender*unionmme + gender*married_status + gender*race_dummy*educ +
+                        race_dummy*educ + race_dummy*gender + race_dummy*married_status +
+                        unionmme*class + pr_born*unionmme + region*unionmme)
+# This model contains everything plus interaction terms for gender, race_dummy, and unionmme
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+### Running the regressions
+reg1 <- feols(model1, data = dt , vcov="hetero")
+reg2 <- feols(model2, data = dt , vcov="hetero" )
+reg3 <- feols(model3, data = dt , vcov="hetero" )
+reg4 <- feols(model4, data = dt , vcov="hetero" )
+
+# evaluation of the models: using all the sample
+fitstat_register("k", function(x){length( x$coefficients ) - 1}, "No. Variables")           
+reg_results <- etable( reg1 , reg2 , reg3 , reg4 , fitstat = c('aic','bic','rmse','r2','n','k'), keepFactors = TRUE )
+
+reg_stats <- setDF(reg_results)
+
+models <- c("Model 1", "Model 2", "Model 3", "Model 4")
+rmse <- c(reg_stats$reg1[57], reg_stats$reg2[57], reg_stats$reg3[57] ,reg_stats$reg4[57])
+bic <- c(reg_stats$reg1[56], reg_stats$reg2[56], reg_stats$reg3[56] ,reg_stats$reg4[56])
+vars <- c(reg_stats$reg1[60], reg_stats$reg2[60], reg_stats$reg3[60] ,reg_stats$reg4[60])
+
+reg_results_table <- data.frame(models, bic, rmse, vars)
+
+colnames(reg_results_table)<- c("Model", "BIC", "RMSE","No. of coeff")
+
+reg_results_table <- reg_results_table %>% mutate_if(is.numeric, format) %>% 
+  kable( caption = "Model evaluation based on full sample RMSE and BIC") %>%
+  kable_styling(full_width = F, font_size = 10)
+
+
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#####################
+# Cross-validation for better evaluation of predictive performance
+# Simple k-fold cross validation setup:
+# 1) Used method for estimating the model: "lm" - linear model (y_hat = b0+b1*x1+b2*x2 + ...)
+# 2) set number of folds to use (must be less than the no. observations)
+k <- 5
+
+# We use the 'train' function which allows many type of model training -> use cross-validation
+set.seed(111)
+cv1 <- train(model1, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
+
+set.seed(111)
+cv2 <- train(model2, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
+
+set.seed(111)
+cv3 <- train(model3, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
+
+set.seed(111)
+cv4 <- train(model4, dt, method = "lm", trControl = trainControl(method = "cv", number = k), na.action = "na.omit")
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Calculate RMSE for each fold and the average RMSE as well
+cv <- c("cv1", "cv2", "cv3", "cv4")
+rmse_cv <- c()
+
+for(i in 1:length(cv)){
+  rmse_cv[i] <- sqrt((get(cv[i])$resample[[1]][1]^2 +
+                        get(cv[i])$resample[[1]][2]^2 +
+                        get(cv[i])$resample[[1]][3]^2 +
+                        get(cv[i])$resample[[1]][4]^2)/4)
+}
+
+
+# summarize results
+cv_mat <- data.frame(rbind(cv1$resample[4], "Average"),
+                     rbind(cv1$resample[1], rmse_cv[1]),
+                     rbind(cv2$resample[1], rmse_cv[2]),
+                     rbind(cv3$resample[1], rmse_cv[3]),
+                     rbind(cv4$resample[1], rmse_cv[4])
+)
+
+colnames(cv_mat)<-c("Resample","Model1", "Model2", "Model3", "Model4")
+
+
+# Show model complexity and out-of-sample RMSE performance
+m_comp <- c()
+models <- c("reg1", "reg2", "reg3", "reg4")
+for( i in 1 : length(cv) ){
+  m_comp[ i ] <- length( get( models[i] )$coefficient  - 1 ) 
+}
+
+m_comp <- tibble( model = models , 
+                  complexity = m_comp,
+                  RMSE = rmse_cv )
+
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE }
+
+model_complexity <- ggplot( m_comp , aes( x = complexity , y = RMSE ) ) +
+  geom_point(color='red',size=2) +
+  geom_line(color='blue',size=0.5)+
+  labs(x='Number of explanatory variables',y='Averaged RMSE on test samples',
+       title='Prediction performance and model compexity') +
+  scale_y_continuous(limits = c(6,6.8), breaks = c(seq(6,7,0.2))) + 
+  scale_x_continuous(limits = c(0,60), breaks = c(seq(0,55,5))) +
+  ggthemes::theme_economist()
+
+# plotting results
+pred_fit <- ggplot(dt, aes(x=predict(reg2, dt), y=w)) + 
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, size = 0.5) +
+  scale_x_continuous(limits = c(0,40), breaks = c(seq(0,40,10))) + 
+  scale_y_continuous(limits = c(0,60), breaks = c(seq(0,60,10))) +
+  labs(x='Predicted values of wage per hour ($)',y='wage per hour ($)',
+       title='Actual wage per hour ($) vs predicted values') +
+  ggthemes::theme_economist()
+```
+
+# Appendix
+
+## Full sample regression stats
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+reg_results_table
+
+```
+
+## 5-Fold cross-validation model complexity vs averaged RMSE
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+
+model_complexity
+
+```
+
+## Prediction fit of model 2
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+pred_fit
+```
+
+## Distribution of variables
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+dist_w 
+
+plot_agew
+```
+
+
+## Box plots to identify interactions 
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+
+
+## Arranging interaction plots into a grid for better presentation
+
+grid.arrange(educ_gender, educ_race,
+             nrow = 1, ncol = 2)
+
+grid.arrange(race_gender, ownchild_gender, 
+             nrow = 1, ncol = 2)
+
+grid.arrange(unionmme_region, unionmme_class, 
+             nrow = 1, ncol = 2)
+
+grid.arrange(race_married, married_gender,
+             nrow = 1, ncol = 2)
+
+grid.arrange(unionmme_prborn, unionmme_race, 
+             nrow = 1, ncol = 2)
+
+grid.arrange(union_gender, 
+             nrow = 1, ncol = 2)
+
+```
+
