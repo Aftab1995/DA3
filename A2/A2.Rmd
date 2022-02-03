@@ -23,21 +23,16 @@ library(fixest)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-# Loading data
-
-#listing_macro <- read_csv("A2/listings_macro.csv")
-#listing_mini <- read_csv("A2/listings_mini.csv")
-
-# Merging the two datasets to get the price from listing_mini file
-#data <- merge(listing_macro, listing_mini, by = "id" )
-
-# Removing the initially loaded files
-#rm(listing_macro)
-#rm(listing_mini)
 
 #setwd("C:/Users/Aftab/Courses/DA3/Git-DA3/DA3/A2/")
 
-# Saving the joined data on the local machine for easy retreival
+# Loading data
+data <- read_csv("listings.csv")
+
+# Removing the initially loaded file
+#rm(listing_macro)
+
+# Saving the data on the local machine as an RDS file for easy retrieval
 #saveRDS(data,"data.RDS")
 
 data <- readRDS("data.RDS")
@@ -45,29 +40,93 @@ data <- readRDS("data.RDS")
 
 ```
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+```{r, echo=FALSE, include=FALSE}
+# basic data checks
+sort(unique(data$last_scraped)) # Data points were scrapped on 3 dates, "2021-12-26" "2021-12-27" "2021-12-28". We will only keep "2021-12-26"
+sum(rowSums(is.na(data)) == ncol(data)) # no only NA rows
+nrow(data[duplicated(data),]) #  no duplicates 
 
-# Finding missing values
-
+# where do we have missing variables now?
 to_filter <- sapply(data, function(x) sum(is.na(x)))
-#to_filter[to_filter > 0]
+to_filter[to_filter > 4900] # There are 20 columns with 4900 plus missing rows, however, we will look for columns with at least 10000 rows missing to delete them
 
-# bathrooms are missing overall, will drop
+to_filter[to_filter > 10000] # There 5 columns with 17000 plus missing rows which we will drop in the next chunk
+# The rest we are keeping to see how they will turn out after data cleaning and drilling down to apartments with 2-6 people 
 
-data$bathrooms <- NULL
+rm(to_filter)
+```
 
-# neighbourhood_group_cleansed are missing overall, will drop
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Dropping columns with more than 17000 NAs
+data$host_neighbourhood = NULL
+data$neighbourhood_group_cleansed = NULL
+data$neighbourhood_group = NULL
+data$bathrooms = NULL
+data$calendar_updated = NULL
 
-data$neighbourhood_group_cleansed <- NULL
 
-# calendar_updated are missing all values, will drop
+#data <- subset(data, data$last_scraped == "2021-12-26") # keeping the data scrapped as of 26th December 2021
 
-data$calendar_updated <- NULL
+# Dropping unnecessary columns
+drops <- c("listing_url",
+           "last_scraped",
+           "scrape_id",
+           "name",
+           "description",
+           "neighborhood_overview",
+           "picture_url",
+           "host_url",
+           "host_location",
+           "host_about",
+           "host_thumbnail_url",
+           "host_picture_url",
+           "host_total_listings_count",
+           "minimum_minimum_nights", "minimum_maximum_nights", "minimum_nights_avg_ntm",
+           "maximum_minimum_nights", "maximum_maximum_nights", "maximum_nights_avg_ntm",
+           "number_of_reviews_ltm", "number_of_reviews_l30d",
+           "calculated_host_listings_count_entire_homes", 
+           "calculated_host_listings_count_private_rooms", 
+           "calculated_host_listings_count_shared_rooms")
 
-datasummary_skim(data)
+data <- data[ , !(names(data) %in% drops)]
 
-# Dropping unwanted columns such as scrapping id, host name etc
-data[,2:11] <- NULL
+
+write_rds(data,"data_raw.RDS")
+
+# dropping broken lines - where id is not a character of numbers
+data$junk<-grepl("[[:alpha:]]", data$id)
+data<-subset(data,data$junk==FALSE)
+data$junk <- NULL
+
+# displaying the class and type of each columns
+sapply(data, class)
+sapply(data, typeof)
 
 ```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Data Cleaning
+
+# Removing percentage signs
+for (i in c("host_response_rate","host_acceptance_rate")){
+  data[[i]]<-as.numeric(gsub("%","",as.character(data[[i]])))
+}
+
+# Removing dollar signs from price variables
+for (i in 1:nrow(data)){
+  data$price[i] <- as.numeric(gsub("\\$","",as.character(data$price[i])))
+}
+
+data$price <- as.numeric(data$price)
+
+# Formatting binary variables
+for (i in c("host_is_superhost","host_has_profile_pic","host_identity_verified", "has_availability", "instant_bookable")){
+  data[[i]][data[[i]]=="f"] <- 0
+  data[[i]][data[[i]]=="t"] <- 1
+}
+
+
+```
+
 
