@@ -19,14 +19,55 @@ library(rattle)
 library(rpart.plot)
 library(modelsummary)
 library(fixest)
-library(data.table)
 
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 # Loading data
 
-data <- fread("A2/listings.csv")
+#listing_macro <- read_csv("A2/listings_macro.csv")
+#listing_mini <- read_csv("A2/listings_mini.csv")
+
+# Merging the two datasets to get the price from listing_mini file
+#data <- merge(listing_macro, listing_mini, by = "id" )
+
+# Removing the initially loaded files
+#rm(listing_macro)
+#rm(listing_mini)
+
+#setwd("C:/Users/Aftab/Courses/DA3/Git-DA3/DA3/A2/")
+
+# Saving the joined data on the local machine for easy retreival
+#saveRDS(data,"data.RDS")
+
+data <- readRDS("data.RDS")
+
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Finding missing values
+
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+#to_filter[to_filter > 0]
+
+# bathrooms are missing overall, will drop
+
+data$bathrooms <- NULL
+
+# neighbourhood_group_cleansed are missing overall, will drop
+
+data$neighbourhood_group_cleansed <- NULL
+
+# calendar_updated are missing all values, will drop
+
+data$calendar_updated <- NULL
+
+datasummary_skim(data)
+
+# Dropping unwanted columns such as scrapping id, host name etc
+data[,2:11] <- NULL
 
 ```
 
