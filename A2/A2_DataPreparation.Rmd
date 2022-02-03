@@ -1,0 +1,95 @@
+---
+title: "A2_DataPreparation"
+author: "Aftab"
+date: "2/3/2022"
+output: pdf_document
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(stargazer)
+library(Hmisc)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Loading the cleaned data
+
+data <- readRDS("data_cleaned.RDS")
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Filtering data as per the project requirement
+
+# keep if accommodates 2-6 people
+data <- data[data$accommodates >= 2 & data$accommodates <= 6,]
+
+
+# Checking for different property types
+types <- data %>% group_by(property_type) %>% 
+  summarise(number = n()) %>% 
+  arrange(.,-number)
+
+rm(types)
+
+# keep if property type is Apartment which will give us our final data
+data <- data %>%
+  filter(property_type == "Entire serviced apartment" | property_type == "Entire home/apt")
+
+data$property_type <- data %>%  mutate(property_type = replace(property_type, property_type != "Entire serviced apartment", "Entire serviced apartment"))
+
+
+```
+
+```{r}
+# Cleaning variables
+#### FACTORS
+#
+# Property type as factor
+data %>% 
+  group_by(property_type) %>% 
+  summarise(cnt = n()) %>% 
+  arrange(-cnt)
+
+data$property_type <- word(data$property_type, -1) 
+
+data <- data %>% 
+  mutate( f_property_type = factor(property_type))
+
+
+#Room type as factor
+data %>% 
+  group_by(room_type) %>% 
+  summarise(cnt = n())
+
+
+data <- data[data$room_type != "Hotel room",]
+
+data <- data %>%
+  mutate(f_room_type = factor(room_type))
+
+
+
+# Rename roomt type because it is too long
+data$f_room_type2 <- factor(ifelse(data$f_room_type== "Entire home/apt", "Entire/Apt",
+                                 ifelse(data$f_room_type== "Private room", "Private",
+                                        ifelse(data$f_room_type== "Shared room", "Shared", "."))))
+
+# neighbourhood_cleansed as factors
+unique(data$neighbourhood_cleansed)
+data <- data %>%
+  mutate(f_neighbourhood_cleansed = factor(neighbourhood_cleansed, levels = c("Louvre", "Bourse", "Temple", "Hôtel-de-Ville", 
+                                                                              "Panthéon", "Luxembourg", "Palais-Bourbon", "Élysée",
+                                                                              "Opéra", "Entrepôt", "Popincourt", "Reuilly", 
+                                                                              "Gobelins", "Observatoire", "Vaugirard", "Passy", 
+                                                                              "Batignolles-Monceau", "Buttes-Montmartre","Buttes-Chaumont", "Ménilmontant")))
+
+# get host_response_time as factors
+data <- data %>% 
+  mutate(f_host_response_time = factor(host_response_time, levels = c( "within an hour",  "within a few hours",
+                                                                       "within a day", "a few days or more")))
+```
+
