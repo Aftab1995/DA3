@@ -16,7 +16,7 @@ library(Hmisc)
 
 # Loading the cleaned data
 
-data <- readRDS("data_cleaned.RDS")
+data <- readRDS("A2/data_cleaned.RDS")
 
 ```
 
@@ -37,12 +37,15 @@ rm(types)
 
 # keep if property type is Apartment which will give us our final data
 data <- data %>%
-  filter(property_type == "Entire serviced apartment" | property_type == "Entire home/apt")
+  filter(grepl("apartment", property_type )) %>% 
+  filter(!grepl("in serviced apartment", property_type))
 
-data$property_type <- data %>%  mutate(property_type = replace(property_type, property_type != "Entire serviced apartment", "Entire serviced apartment"))
 
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
 
 ```
+
 
 ```{r}
 # Cleaning variables
