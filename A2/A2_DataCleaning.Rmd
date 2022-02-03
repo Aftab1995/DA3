@@ -129,7 +129,7 @@ for (i in c("host_is_superhost","host_has_profile_pic","host_identity_verified",
 
 ```
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSEr}
 
 # Cleaning the Amenities column and creating new binary columns out of it
 # Amenities
@@ -211,7 +211,7 @@ rm(perc)
 
 ```
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
 # Dropping more unnecessary columns
 
