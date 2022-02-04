@@ -35,10 +35,11 @@ types <- data %>% group_by(property_type) %>%
 
 rm(types)
 
-# keep if property type is Apartment which will give us our final data
+# keep if property type is Apartment which will give us our final data       
 data <- data %>%
-  filter(grepl("apartment", property_type )) %>% 
+  filter(grepl("apartment", property_type )|grepl("Entire loft", property_type )|grepl("Entire home/apt", property_type )) %>% 
   filter(!grepl("in serviced apartment", property_type))
+# We will be creating flag variables for "Entire loft" and "Entire home/apt" property types
 
 
 to_filter <- sapply(data, function(x) sum(is.na(x)))
@@ -56,14 +57,13 @@ data %>%
   group_by(property_type) %>% 
   summarise(cnt = n()) %>% 
   arrange(-cnt)
-
-data$property_type <- word(data$property_type, -1) 
+ 
 
 data <- data %>% 
   mutate( f_property_type = factor(property_type))
 
 
-#Room type as factor
+# Room type as factor
 data %>% 
   group_by(room_type) %>% 
   summarise(cnt = n())
@@ -74,25 +74,161 @@ data <- data[data$room_type != "Hotel room",]
 data <- data %>%
   mutate(f_room_type = factor(room_type))
 
-
-
-# Rename roomt type because it is too long
-data$f_room_type2 <- factor(ifelse(data$f_room_type== "Entire home/apt", "Entire/Apt",
-                                 ifelse(data$f_room_type== "Private room", "Private",
-                                        ifelse(data$f_room_type== "Shared room", "Shared", "."))))
-
+#############################################################################
 # neighbourhood_cleansed as factors
-unique(data$neighbourhood_cleansed)
+unique(data$neighbourhood)
+
+data$neighbourhood <- gsub(",","",data$neighbourhood)
+
+data$neighbourhood <- word(data$neighbourhood, 1)
+
+data$neighbourhood <- gsub("chania","Chania",data$neighbourhood)
+
+
+data$neighbourhood <- gsub("Rethymno","Rethymnon",data$neighbourhood)
+
+data$neighbourhood <- gsub("Rethymno","Rethimnon",data$neighbourhood)
+
+data$neighbourhood <- gsub("PLAKIAS","Plakias",data$neighbourhood)
+
+data$neighbourhood <- gsub("Kalives","Kalyves",data$neighbourhood)
+
+data$neighbourhood <- gsub("Christi","Chryssi",data$neighbourhood)
+
+data$neighbourhood <- gsub("Chrissi","Chryssi",data$neighbourhood)
+
+data$neighbourhood <- gsub("Rethimnon","Rethimnonn",data$neighbourhood)
+
+data$neighbourhood <- gsub("Rethimnonnn","Rethimnonn",data$neighbourhood)
+
+data$neighbourhood <- gsub("IERAPETRA","Ierapetra",data$neighbourhood)
+
+
+# There are some Greek names which I will replace after translating from Google
+
+# Χανιά = Chania (Xavia)
+# Πισκοπιανό = Piskopiano
+# Ατσιπόπουλο = Atsipopoulo
+# Καλύβες = Kalyves
+# Σητεια = Sitia
+# Ρέθυμνο = Rethimno
+# Агиос = Agios
+# Ανισσαράς = Anissaras
+# Πλατανιάς = Platanias
+
+test <- data %>% 
+  group_by(neighbourhood) %>% 
+  summarise(cnt = n())
+
+data$neighbourhood <- data %>%  ifelse(neighbourhood == "<U+3A7A><U+03BD><U+03B9><U+03AC>", "Chania", as.character(data$neighbourhood))  
+
+data$neighbourhood[18] <- gsub("Χανιά","Chania",data$neighbourhood)
+
+coded <- c("<U+03A7>a<U+03BD><U+03B9><U+03AC>","<U+03A0><U+03B9>s<U+03BA><U+03BF>p<U+03B9>a<U+03BD><U+03CC>","<U+0391>ts<U+03B9>p<U+03CC>p<U+03BF><U+03C5><U+03BB><U+03BF>","<U+039A>a<U+03BB><U+03CD>ße<U+03C2> ", "Σητεια", "<U+03A1><U+03AD><U+03B8><U+03C5>µ<U+03BD><U+03BF>",  "Агиос", "<U+0391><U+03BD><U+03B9>ssa<U+03C1><U+03AC><U+03C2>", "<U+03A0><U+03BB>ata<U+03BD><U+03B9><U+03AC><U+03C2>")
+greek <- c("Χανιά", "Πισκοπιανό","Ατσιπόπουλο","Καλύβες", "Σητεια", "Ρέθυμνο",  "Агиос", "Ανισσαράς", "Πλατανιάς")
+english <- c("Chania", "Piskopiano", 'Atsipopoulo', 'Kalyves', 'Sitia', 'Rethimno', 'Agios', 'Anissaras', 'Platanias' )
+
+for (i in coded) {
+  for (j in english) {
+  data$neighbourhood <- if_else(data$neighbourhood == i, j, data$neighbourhood)
+}}
+
 data <- data %>%
-  mutate(f_neighbourhood_cleansed = factor(neighbourhood_cleansed, levels = c("Louvre", "Bourse", "Temple", "Hôtel-de-Ville", 
-                                                                              "Panthéon", "Luxembourg", "Palais-Bourbon", "Élysée",
-                                                                              "Opéra", "Entrepôt", "Popincourt", "Reuilly", 
-                                                                              "Gobelins", "Observatoire", "Vaugirard", "Passy", 
-                                                                              "Batignolles-Monceau", "Buttes-Montmartre","Buttes-Chaumont", "Ménilmontant")))
+  mutate(f_neighbourhood = factor(neighbourhood, levels = unique))
+#################################################################
 
 # get host_response_time as factors
 data <- data %>% 
   mutate(f_host_response_time = factor(host_response_time, levels = c( "within an hour",  "within a few hours",
                                                                        "within a day", "a few days or more")))
 ```
+
+```{r}
+
+#### NUMERIC VARIABLES
+#
+## Create Numerical variables
+data <- data %>%  mutate( p_host_response_rate = as.numeric(host_response_rate),
+          p_host_acceptance_rate = as.numeric(host_acceptance_rate))
+
+# clean number of bathrooms
+data <- data %>% rename(bathrooms = bathrooms_text)
+# get the number of baths from bathroom_text
+data$bathrooms <- as.numeric(gsub("[^0-9.-]", "", gsub("half", 0.5, data$bathrooms, ignore.case = T)))
+
+unique(data$bathrooms)
+
+# add new numeric columns from certain columns
+numericals <- c("accommodates","bathrooms", "bedrooms", "beds", "review_scores_rating","number_of_reviews",
+                "reviews_per_month","minimum_nights", "availability_365")
+data <- data %>%
+  mutate_at(vars(numericals), funs("n"=as.numeric))
+
+
+# rename columns so they start with n_ as opposed to end with _n
+nnames <- data %>%
+  select(ends_with("_n")) %>%
+  names()
+nnames_i <- match(nnames, colnames(data))
+colnames(data)[nnames_i] <- paste0("n_", numericals)
+
+
+#create days since first review
+data <- data %>%
+  mutate(
+    n_days_since_first_review = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
+                                as.Date(first_review ,format="%Y-%m-%d")))
+
+#create days since second review
+data <- data %>%
+  mutate(
+    n_days_since_last_review = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
+                                as.Date(last_review ,format="%Y-%m-%d")))
+
+```
+
+```{r}
+
+#### DUMMY VARIABLES
+#
+# create dummy vars
+dummies <- c(names(data)[seq(42,133)],"host_is_superhost", "host_identity_verified" )
+data <- data %>%
+  mutate_at(vars(dummies), funs("d"= (.)))
+
+# rename columns
+dnames <- data %>%
+  select(ends_with("_d")) %>%
+  names()
+dnames_i <- match(dnames, colnames(data))
+colnames(data)[dnames_i] <- paste0("d_", tolower(gsub("[^[:alnum:]_]", "",dummies)))
+
+```
+
+```{r}
+
+
+
+# CREATE WORK FILE --------------------------------------------------------
+
+# keep columns if contain d_, n_, f_, p_, usd_ and some others
+data <- data %>%
+  select(matches("^d_.*|^n_.*|^f_.*|^p_.*|^usd_.*"), price, id,
+         neighbourhood_cleansed,room_type,property_type)
+
+# with price info only
+data <- data %>%
+  drop_na(price)
+
+# rename price in USD to price and price to local price for simplicity 
+data <- data %>% 
+  rename(price = usd_price,
+         local_price = price)
+
+write_csv(data, paste0(data_out, "airbnb_paris_workfile.csv"))
+saveRDS(data, paste0(data_out, "airbnb_paris_workfile.rds"))
+
+```
+
+
 
