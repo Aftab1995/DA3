@@ -2,7 +2,7 @@
 title: "A2_DataPreparation"
 author: "Aftab"
 date: "2/3/2022"
-output: pdf_document
+output: html_document
 ---
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -76,65 +76,7 @@ data <- data %>%
 
 #############################################################################
 # neighbourhood_cleansed as factors
-unique(data$neighbourhood)
-
-data$neighbourhood <- gsub(",","",data$neighbourhood)
-
-data$neighbourhood <- word(data$neighbourhood, 1)
-
-data$neighbourhood <- gsub("chania","Chania",data$neighbourhood)
-
-
-data$neighbourhood <- gsub("Rethymno","Rethymnon",data$neighbourhood)
-
-data$neighbourhood <- gsub("Rethymno","Rethimnon",data$neighbourhood)
-
-data$neighbourhood <- gsub("PLAKIAS","Plakias",data$neighbourhood)
-
-data$neighbourhood <- gsub("Kalives","Kalyves",data$neighbourhood)
-
-data$neighbourhood <- gsub("Christi","Chryssi",data$neighbourhood)
-
-data$neighbourhood <- gsub("Chrissi","Chryssi",data$neighbourhood)
-
-data$neighbourhood <- gsub("Rethimnon","Rethimnonn",data$neighbourhood)
-
-data$neighbourhood <- gsub("Rethimnonnn","Rethimnonn",data$neighbourhood)
-
-data$neighbourhood <- gsub("IERAPETRA","Ierapetra",data$neighbourhood)
-
-
-# There are some Greek names which I will replace after translating from Google
-
-# Χανιά = Chania (Xavia)
-# Πισκοπιανό = Piskopiano
-# Ατσιπόπουλο = Atsipopoulo
-# Καλύβες = Kalyves
-# Σητεια = Sitia
-# Ρέθυμνο = Rethimno
-# Агиос = Agios
-# Ανισσαράς = Anissaras
-# Πλατανιάς = Platanias
-
-test <- data %>% 
-  group_by(neighbourhood) %>% 
-  summarise(cnt = n())
-
-data$neighbourhood <- data %>%  ifelse(neighbourhood == "<U+3A7A><U+03BD><U+03B9><U+03AC>", "Chania", as.character(data$neighbourhood))  
-
-data$neighbourhood[18] <- gsub("Χανιά","Chania",data$neighbourhood)
-
-coded <- c("<U+03A7>a<U+03BD><U+03B9><U+03AC>","<U+03A0><U+03B9>s<U+03BA><U+03BF>p<U+03B9>a<U+03BD><U+03CC>","<U+0391>ts<U+03B9>p<U+03CC>p<U+03BF><U+03C5><U+03BB><U+03BF>","<U+039A>a<U+03BB><U+03CD>ße<U+03C2> ", "Σητεια", "<U+03A1><U+03AD><U+03B8><U+03C5>µ<U+03BD><U+03BF>",  "Агиос", "<U+0391><U+03BD><U+03B9>ssa<U+03C1><U+03AC><U+03C2>", "<U+03A0><U+03BB>ata<U+03BD><U+03B9><U+03AC><U+03C2>")
-greek <- c("Χανιά", "Πισκοπιανό","Ατσιπόπουλο","Καλύβες", "Σητεια", "Ρέθυμνο",  "Агиос", "Ανισσαράς", "Πλατανιάς")
-english <- c("Chania", "Piskopiano", 'Atsipopoulo', 'Kalyves', 'Sitia', 'Rethimno', 'Agios', 'Anissaras', 'Platanias' )
-
-for (i in coded) {
-  for (j in english) {
-  data$neighbourhood <- if_else(data$neighbourhood == i, j, data$neighbourhood)
-}}
-
-data <- data %>%
-  mutate(f_neighbourhood = factor(neighbourhood, levels = unique))
+# the column neighbourhood was deleted from the dataset due to the rpesence of non-english words, which were being represented as Greek letters in the RStudio IDE, however, was being stored as some kind of a code at the back end due to which it was not known on how to modify the column
 #################################################################
 
 # get host_response_time as factors
@@ -173,17 +115,18 @@ nnames_i <- match(nnames, colnames(data))
 colnames(data)[nnames_i] <- paste0("n_", numericals)
 
 
-#create days since first review
-data <- data %>%
-  mutate(
-    n_days_since_first_review = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
-                                as.Date(first_review ,format="%Y-%m-%d")))
-
-#create days since second review
+#create days since last review
 data <- data %>%
   mutate(
     n_days_since_last_review = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
                                 as.Date(last_review ,format="%Y-%m-%d")))
+
+# creating days sincce the host first joined
+
+data <- data %>%
+  mutate(
+    n_days_since_host = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
+                                as.Date(host_since ,format="%Y-%m-%d")))
 
 ```
 
@@ -209,26 +152,211 @@ colnames(data)[dnames_i] <- paste0("d_", tolower(gsub("[^[:alnum:]_]", "",dummie
 
 
 
-# CREATE WORK FILE --------------------------------------------------------
+# Creating the working dataset
 
 # keep columns if contain d_, n_, f_, p_, usd_ and some others
 data <- data %>%
-  select(matches("^d_.*|^n_.*|^f_.*|^p_.*|^usd_.*"), price, id,
-         neighbourhood_cleansed,room_type,property_type)
+  select(matches("^d_.*|^n_.*|^f_.*|^p_.*|^usd_.*"), price, id,room_type,property_type)
 
 # with price info only
 data <- data %>%
   drop_na(price)
 
-# rename price in USD to price and price to local price for simplicity 
-data <- data %>% 
-  rename(price = usd_price,
-         local_price = price)
+#saveRDS(data,"A2/working_dataset_greece.RDS")
+```
 
-write_csv(data, paste0(data_out, "airbnb_paris_workfile.csv"))
-saveRDS(data, paste0(data_out, "airbnb_paris_workfile.rds"))
+```{r}
+
+##################################
+# Understanding the data
+library(ggplot2)
+
+## Price
+
+summary(data$price)
+describe(data$price)
+
+ggplot(data) +
+  geom_histogram(aes(price))
+
+# It looks like there are only two observations with a price tag of around $400 and $600, both being extreme values. The logic could be that these apartments could be large in size but since our firm is focusing on mid-sized and small-sized apartments, we will focus on properties with price tag of less than $300
+
+# filter out really high extreme values
+data <- data %>%
+  filter(price <300)
+
+ggplot(data) +
+  geom_density(aes(price))
+
+# limiting the price to below $300 dollars gives us a distribution closer to a normal distribution, hence no need to take the log of prices for our analysis purpose
+# No missing values in the price column
+
+```
+
+```{r}
+#### n_accommodates
+describe(data$n_accommodates)
+# No missing values
+data %>%
+  group_by(n_accommodates) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+ggplot(data, aes(n_accommodates)) +
+  geom_histogram(binwidth = 0.5, fill = "cyan4", color = "white", alpha = 0.8, size = 0.25) +
+  xlab("Number of people accomodated") +
+  ggthemes::theme_economist()
+
+ggplot(data, aes(x=n_accommodates, y=price)) +
+  geom_point(size=1, colour="cyan4", shape=16, alpha = 0.6)+
+  geom_smooth(method="loess", colour="darkmagenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3","4","5","6", "7"))+
+  ggthemes::theme_economist()
+# The relationship between number of people accommodated and price seems to be linear, hence we will use linear version of the variable
+
+price_accomodates <- ggplot(data, aes(x=n_accommodates, y=price)) +
+  geom_point(size=1, colour="black", shape=16, alpha = 0.6)+
+  geom_smooth(method="lm",formula = y~x, colour="magenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3","4","5","6"))+
+  ggthemes::theme_economist()
+
+price_accomodates
+```
+
+```{r}
+# checking to see which columns have missing values
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+```
+
+```{r}
+
+## n_bathrooms
+ggplot(data, aes(n_bathrooms)) +
+  geom_histogram(binwidth = 0.5, fill = "cyan4", color = "white", alpha = 1) +
+  xlab("N of bathrooms") +
+  ggthemes::theme_economist()
+
+# Checking to see the association between n_bathrooms and price
+
+# The relationship between number of bathrooms and price seems to be linear, hence we will use linear version of the variable
+
+price_bathrooms <- ggplot(data, aes(x=n_bathrooms, y=price)) +
+  geom_point(size=1, colour="black", shape=16, alpha = 0.6)+
+  geom_smooth(method="lm",formula = y~x, colour="magenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3"))+
+  ggthemes::theme_economist()
+
+# check number of beds for different number of accommodates
+data %>% 
+  group_by(n_accommodates) %>% 
+  summarise(num_baths = mean(n_bathrooms, na.rm = T), min_baths = min(n_bathrooms, na.rm = T), max_baths = max(n_bathrooms, na.rm = T))
+
+#### There is only observation with NA for number of bathrooms and an apartment without a bathroom doesn's sense. Deep dive into the data suggests that the observation has an apartment that can accommodate 4 people and the average number of bathrooms for apartments with 4 is 1.03, hence we will impute this NA with the value 1
+
+data$n_bathrooms <- ifelse(is.na(data$n_bathrooms),1,data$n_bathrooms)
+
+```
+
+```{r}
+## n_bedrooms and n_beds
+data %>%
+  group_by(n_bedrooms) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n(), median_accommodates = median(n_accommodates))
+
+data %>%
+  group_by(n_beds) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n(), median_accommodates = median(n_accommodates))
+
+
+# check number of bedrooms for different number of accommodates
+data %>% 
+  group_by(n_accommodates) %>% 
+  summarise(num_bedrooms = mean(n_bedrooms, na.rm = T), min_bedrooms = min(n_bedrooms, na.rm = T), max_bedrooms = max(n_beds, na.rm = T))
+
+data <- data %>% 
+  mutate(d_flag_bedrooms = ifelse(is.na(n_bedrooms), 1, 0))
+
+
+# There are 89 observations in with NA values. Looking at the median accommodates for the NA is 3, which also is the same as median accommodates for n_bedrooms = 1. Hence, we will take the number of accommodates and divide it by 2, round it up to the nearest integer to get the number of bedrooms. This is also because the median number of accommodates is twice the number of median bedrooms in the dataset. This number will be used to impute the values for NAs in the n_bedrooms. The same logic also applies to the number of beds in  an apartment. 
+
+data <- data %>%
+  mutate(
+    n_beds = ifelse(is.na(n_beds), round(n_accommodates / 2), n_beds), #assume that 1 bed corresponds to about 2 accommodates
+    n_bedrooms = ifelse(is.na(n_bedrooms), round(n_accommodates / 2), n_bedrooms),) #assume that bedrooms correlate to around half the number of accommodates
+
+# The relationship between number of people accommodated and price seems to be linear, hence we will use linear version of the variable
+
+price_bedrooms <- ggplot(data, aes(x=n_bedrooms, y=price)) +
+  geom_point(size=1, colour="black", shape=16, alpha = 0.6)+
+  geom_smooth(method="lm",formula = y~x, colour="magenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3"))+
+  ggthemes::theme_economist()
+
+```
+
+```{r}
+
+# checking to see which columns have missing values
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+
+```
+
+```{r}
+
+data <- data %>%
+  mutate(
+    flag_review_scores_rating = ifelse(is.na(n_review_scores_rating),1, 0),
+    n_review_scores_rating =  ifelse(is.na(n_review_scores_rating), median(n_review_scores_rating, na.rm = T), n_review_scores_rating),
+    
+    flag_host_acceptance_rate = ifelse(is.na(p_host_acceptance_rate),1, 0),
+    p_host_acceptance_rate =  ifelse(is.na(p_host_acceptance_rate), median(p_host_acceptance_rate, na.rm = T), p_host_acceptance_rate),
+    
+    flag_host_response_rate = ifelse(is.na(p_host_response_rate),1, 0),
+    p_host_response_rate =  ifelse(is.na(p_host_response_rate), median(p_host_response_rate, na.rm = T), p_host_response_rate),
+    
+    flag_host_response_time = ifelse(is.na(f_host_response_time),1, 0),
+    f_host_response_time =  ifelse(is.na(f_host_response_time), "missing", f_host_response_time),
+    
+    flag_days_since_last_review = ifelse(is.na(n_days_since_last_review),1, 0),
+    n_days_since_last_review =  ifelse(is.na(n_days_since_last_review), median(n_days_since_last_review, na.rm = T), n_days_since_last_review),
+  )
+table(data$f_host_response_time)
+
+# The above created flag variables have values close to zero, which may suggest that the missing values are at random. After creating the flag variables, we have replaced the missing values with median for numeric columns and with missing for non-numeric
+
+# where do we have missing values now?
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
 
 ```
 
 
+```{r}
+
+# look at some cnts. key vars, functional form #
+## n_accomodates: look at distribution
+
+
+## Number of reviews
+
+ggplot(data, aes(n_number_of_reviews)) +
+  geom_histogram(binwidth = 5, fill = "black", alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("N of reviews")
+
+# Number of reviews is highly skewed with a long left tail, will make sense to use the log of reviews
+data <- data %>%
+  mutate(ln_number_of_reviews = log(n_number_of_reviews+1))
+
+ggplot(data, aes(ln_number_of_reviews)) +
+  geom_histogram(binwidth = 0.5, fill = "black",alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("Log N of reviews") 
+
+```
 
