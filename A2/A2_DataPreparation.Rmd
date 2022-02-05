@@ -162,7 +162,7 @@ data <- data %>%
 data <- data %>%
   drop_na(price)
 
-#saveRDS(data,"A2/working_dataset_greece.RDS")
+
 ```
 
 ```{r}
@@ -324,6 +324,9 @@ data <- data %>%
     
     flag_days_since_last_review = ifelse(is.na(n_days_since_last_review),1, 0),
     n_days_since_last_review =  ifelse(is.na(n_days_since_last_review), median(n_days_since_last_review, na.rm = T), n_days_since_last_review),
+        
+    flag_reviews_per_month = ifelse(is.na(n_reviews_per_month),1, 0),
+   n_reviews_per_month =  ifelse(is.na(n_reviews_per_month), median(n_reviews_per_month, na.rm = T), n_reviews_per_month)
   )
 table(data$f_host_response_time)
 
@@ -358,5 +361,27 @@ ggplot(data, aes(ln_number_of_reviews)) +
   ylab("") +
   xlab("Log N of reviews") 
 
+```
+
+```{r}
+column_names <- colnames(data)
+write.csv(column_names,"A2/column_names.csv")
+
+
+data$f_property_type == data$property_type
+data$f_room_type == data$room_type
+#Deleting repetitive columns
+data$property_type <- NULL
+data$room_type <- NULL
+
+#deleting columns which we think are not required
+data$n_days_since_first_review <- NULL # Because we will be using days since last review - days since first review
+
+
+```
+
+
+```{r}
+saveRDS(data,"A2/working_dataset_greece.RDS")
 ```
 

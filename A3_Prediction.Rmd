@@ -22,9 +22,10 @@ library(knitr)
 library(cowplot)
 library(rattle)
 #library(ranger)
-library(Hmisc)
+#library(Hmisc)
 library(kableExtra)
 #library(ggcorrplot)
+library(modelsummary)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -41,8 +42,53 @@ to_filter[to_filter > 0]
 ```
 
 ```{r}
+data %>%
+  group_by(f_property_type, f_room_type) %>%
+  summarise(mean_price = mean(price))
 
-skimr::skim(data)
+# Creating LOWESS plots to identify the association petween price and the rest of teh variables
 
+# for (i in colnames(data)) {
+# 
+#   ggplot(data,aes_string(x=i, y="price"))+
+#   geom_smooth(method = "loess", formula = y~x, se=FALSE)+ 
+#   geom_point()
+#   ggsave(paste0("A2/graphs/association/",i,".png"))
+# 
+# }
+
+
+data <- data %>% 
+  mutate(d_safe = ifelse(d_lockbox == 1 | d_safe == 1, 1, 0)) # Since safe box and lock box are the same
+
+data <- data %>% 
+  mutate(d_shared_pool = ifelse(d_shared_pool == 1 | d_shared_outdoor_pool == 1, 1, 0)) # Since shared pool and shared outdoor pool ca be the same
+
+data$n_ln_days_since_last_review <- log(data$n_days_since_last_review)
+data$n_ln_number_of_reviews <- data$ln_number_of_reviews
+data$n_ln_minimum_nights <- data$n_minimum_nights
+
+# Removing columns based on above created graphs
+
+drop <- c("d_fire_pit", "d_lake_access","d_ping_pong_table", "d_private_hot_tub","d_private_outdoor_heated_pool","d_private_outdoor_pool", "d_private_pool", "f_room_type", "n_number_of_reviews","d_bikes","d_board_games","d_game_console","d_have_fitnessgym","d_have_body_soapgel","d_have_sound_system","d_hot_tub","d_lock_on_bedroom_door","d_lockbox","d_shared_outdoor_pool","n_days_since_last_review","ln_number_of_reviews","n_minimum_nights")
+
+data <- data %>%
+  select(-one_of(drop))
+```
+
+```{r}
+# Checking distributions of variables
+
+for (i in colnames(data)) {
+
+  ggplot(data)+
+  geom_density(aes_string(x=i))
+  
+  ggsave(paste0("A2/graphs/distributions/",i,".png"))
+
+}
+
+ggplot(data, aes(exp(p_host_acceptance_rate/100)))+
+  geom_density()
 ```
 
