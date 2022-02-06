@@ -364,12 +364,12 @@ predictors <- c(basic_lev, host, reviews, ammenities,interactions)
 
 # set tuning 
 tune_grid <- expand.grid(
-  .mtry = c(8, 10, 12),
+  .mtry = c(6, 8, 10),
   .splitrule = "variance",
   .min.node.size = c(5, 10, 15)
 )
 
-set.seed(2021)
+set.seed(111)
 system.time({
   rf_model <- train(
     formula(paste0("price ~", paste0(predictors, collapse = " + "))),
@@ -377,13 +377,14 @@ system.time({
     method = "ranger",
     trControl = train_control,
     tuneGrid = tune_grid,
-    importance = "impurity"
+    importance = "impurity",
+  .num.trees=500
   )
 })
 
 rf_model
 
-# auto tuning first - just takes too much time...
+# auto tuning random forest 
 set.seed(111)
 system.time({
   rf_model_auto <- train(
@@ -391,7 +392,8 @@ system.time({
     data = data_train,
     method = "ranger",
     trControl = train_control,
-    importance = "impurity"
+    importance = "impurity",
+  .num.trees=500
   )
 })
 rf_model_auto
@@ -644,6 +646,132 @@ result_2 <- map(final_models, ~{
   rename("Holdout RMSE" = ".")
 
 result_2
+
+```
+
+```{r}
+
+#########################################################################################
+# Partial Dependence Plots for the best model; random forest with specified tuning parameters
+#########################################################################################
+
+# 1) Property Type
+pdp_f_property_type <- pdp::partial(rf_model, pred.var = "f_property_type", 
+                          pred.grid = distinct_(data_test, "f_property_type"), 
+                          train = data_train)
+
+pdp_f_property_type %>%
+  autoplot( ) +
+  geom_point(color='red', size=2) +
+  geom_line(color='red', size=1) +
+  ylab("Predicted price") +
+  xlab("Property Type") +
+theme_bw()
+
+
+# 2) Number of accommodates
+pdp_n_accommodates <- pdp::partial(rf_model, pred.var = "n_accommodates", 
+                               pred.grid = distinct_(data_test, "n_accommodates"), 
+                               train = data_train)
+pdp_n_accommodates %>%
+  autoplot( ) +
+  geom_point(color='red', size=4) +
+  ylab("Predicted price") +
+  xlab("Accommodates (persons)") +
+  scale_y_continuous(limits=c(60,120), breaks=seq(60,120, by=10)) +
+  theme_bw()
+
+
+# 3) Municipality (neighborhood)
+pdp_f_municipality <- pdp::partial(rf_model, pred.var = "f_municipality", 
+                               pred.grid = distinct_(data_test, "f_municipality"), 
+                               train = data_train)
+pdp_f_municipality %>%
+  autoplot( ) +
+  geom_point(color='red', size=4) +
+  ylab("Predicted price") +
+  xlab("Accommodates (persons)") +
+  theme_bw()
+
+####
+# Subsample performance: RMSE / mean(y) ---------------------------------------
+# NOTE  we do this on the holdout set.
+
+# 
+data_holdout_w_prediction <- data_test %>%
+  mutate(predicted_price = predict(rf_model, newdata = data_test))
+
+
+
+######### create nice summary table of heterogeneity
+a <- data_holdout_w_prediction %>%
+  mutate(is_low_size = ifelse(n_accommodates <= 3, "small apt", "large apt")) %>%
+  group_by(is_low_size) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = RMSE(predicted_price, price) / mean(price)
+  )
+
+
+
+b <- data_holdout_w_prediction %>%
+  filter(f_municipality %in% c("Heraklion", "Khania",
+                                         "Lasithi", "Rethymnon")) %>%
+  group_by(f_municipality) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = rmse / mean_price
+  )
+
+
+
+c <- data_holdout_w_prediction %>%
+  filter(n_beds %in% c("2","3", "4","5","6","7","8")) %>%
+  group_by(n_beds) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = rmse / mean_price
+  )
+
+
+d <- data_holdout_w_prediction %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = RMSE(predicted_price, price) / mean(price)
+  )
+
+e <- data_holdout_w_prediction %>%
+  filter(f_property_type %in% c("Entire loft", "Entire serviced apartment")) %>%
+  group_by(f_property_type) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = rmse / mean_price
+  )
+
+
+# Save output
+colnames(a) <- c("", "RMSE", "Mean price", "RMSE/price")
+colnames(b) <- c("", "RMSE", "Mean price", "RMSE/price")
+colnames(c) <- c("", "RMSE", "Mean price", "RMSE/price")
+d<- cbind("All", d)
+colnames(d) <- c("", "RMSE", "Mean price", "RMSE/price")
+colnames(e) <- c("", "RMSE", "Mean price", "RMSE/price")
+
+line1 <- c("Apartment size", "", "", "")
+line2 <- c("Beds", "", "", "")
+line3 <- c("Municipality", "", "", "")
+line4 <- c("Property Type", "", "", "")
+
+result_3 <- rbind(line1,a,line2, c,line3, b,line4, e, d) %>%
+  transform(RMSE = as.numeric(RMSE), `Mean price` = as.numeric(`Mean price`),
+            `RMSE/price` = as.numeric(`RMSE/price`))
+
+result_3
 
 ```
 
