@@ -585,6 +585,32 @@ rpart.plot(cart_model$finalModel, tweak=1.2, digits=-1, extra=1)
 ```
 
 ```{r}
+# GBM
+
+gbm_grid <-  expand.grid(interaction.depth = 5, # complexity of the tree
+                         n.trees = 250, # number of iterations, i.e. trees
+                         shrinkage = 0.1, # learning rate: how quickly the algorithm adapts
+                         n.minobsinnode = 20 # the minimum number of training set samples in a node to commence splitting
+)
+
+
+set.seed(111)
+system.time({
+  gbm_model <- train(formula(paste0("price ~", paste0(predictors, collapse = " + "))),
+                     data = data_train,
+                     method = "gbm",
+                     trControl = train_control,
+                     verbose = FALSE,
+                     tuneGrid = gbm_grid)
+})
+gbm_model
+gbm_model$finalModel
+# save( gbm_model , file = 'gbm_model.RData' )
+
+```
+
+
+```{r}
  # get prediction rmse and add to next summary table
 # ---- compare these models
 
@@ -592,7 +618,8 @@ final_models <-
   list("OLS" = ols_model,
   "CART" = cart_model,
   "Random forest 1: with tuning provided" = rf_model,
-  "Random forest 2: auto tuning" = rf_model_auto)
+  "Random forest 2: auto tuning" = rf_model_auto,
+  "GBM"  = gbm_model)
 
 results <- resamples(final_models) %>% summary()
 
