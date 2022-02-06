@@ -17,16 +17,18 @@ library(grid)
 library(glmnet)
 library(stargazer)
 library(xtable)
-#library(directlabels)
+#install.packages("directlabels")
+library(directlabels)
 library(knitr)
 library(cowplot)
 library(rattle)
-#library(ranger)
 #library(Hmisc)
 library(kableExtra)
 #library(ggcorrplot)
 library(modelsummary)
 library(ranger)
+library(pdp)
+library(gbm)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -34,6 +36,9 @@ library(ranger)
 data <- readRDS("A2/working_dataset_greece.RDS")
 source("theme_bg.R")
 source("da_helper_function.R")
+
+
+
 ```
 
 ```{r, include=FALSE}
@@ -67,12 +72,11 @@ data <- data %>%
   mutate(d_shared_pool = ifelse(d_shared_pool == 1 | d_shared_outdoor_pool == 1, 1, 0)) # Since shared pool and shared outdoor pool ca be the same
 
 data$n_ln_days_since_last_review <- log(data$n_days_since_last_review)
-data$n_ln_number_of_reviews <- data$ln_number_of_reviews
 data$n_ln_minimum_nights <- data$n_minimum_nights
 
 # Removing columns based on above created graphs
 
-drop <- c("d_fire_pit", "d_lake_access","d_ping_pong_table", "d_private_hot_tub","d_private_outdoor_heated_pool","d_private_outdoor_pool", "d_private_pool", "f_room_type", "n_number_of_reviews","d_bikes","d_board_games","d_game_console","d_have_fitnessgym","d_have_body_soapgel","d_have_sound_system","d_hot_tub","d_lock_on_bedroom_door","d_lockbox","d_shared_outdoor_pool","n_days_since_last_review","ln_number_of_reviews","n_minimum_nights")
+drop <- c("d_fire_pit", "d_lake_access","d_ping_pong_table", "d_private_hot_tub","d_private_outdoor_heated_pool","d_private_outdoor_pool", "d_private_pool", "f_room_type", "n_number_of_reviews","d_bikes","d_board_games","d_game_console","d_have_fitnessgym","d_have_body_soapgel","d_have_sound_system","d_hot_tub","d_lock_on_bedroom_door","d_lockbox","d_shared_outdoor_pool","n_days_since_last_review","n_minimum_nights")
 
 data <- data %>%
   select(-one_of(drop))
@@ -98,14 +102,14 @@ ggplot(data, aes(exp(p_host_acceptance_rate/100)))+
 # Grouping variables
 
 # Basic Variables
-basic_lev  <- c("f_property_type","n_accommodates","n_bathrooms","n_bedrooms","n_beds","n_availability_365","d_long_term_stays_allowed","price","d_flag_bedrooms","n_ln_minimum_nights")
+basic_lev  <- c("f_property_type","f_municipality","n_accommodates","n_bathrooms","n_bedrooms","n_beds","n_availability_365","d_long_term_stays_allowed","price","d_flag_bedrooms","n_ln_minimum_nights")
 
 reviews <- c("n_review_scores_rating","n_reviews_per_month","flag_review_scores_rating","flag_days_since_last_review","flag_reviews_per_month","n_ln_days_since_last_review","n_ln_number_of_reviews")
 
 host <- c("f_host_response_time","p_host_response_rate","p_host_acceptance_rate","n_days_since_host","d_host_greets_you","d_host_is_superhost","d_host_identity_verified","flag_host_acceptance_rate","flag_host_response_rate","flag_host_response_time")
 
 
-ammenities <- c("d_bathtub","d_beachfront","d_building_staff","d_carbon_monoxide_alarm","d_cleaning_products","d_cooking_basics","d_dining_table","d_dishes_and_silverware","d_drying_rack_for_clothing","d_elevator","d_essentials","d_extra_pillows_and_blankets","d_fire_extinguisher","d_first_aid_kit","d_hangers","d_hot_water","d_hot_water_kettle","d_laundromat_nearby","d_microwave","d_outdoor_dining_area","d_outdoor_furniture","d_private_entrance","d_roomdarkening_shades","d_safe","d_security_cameras_on_property","d_shared_pool","d_smoke_alarm","d_toaster","d_wine_glasses","d_have_kitchen","d_have_stove","d_have_oven","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_cable","d_have_tv","d_have_iron","d_have_heating","d_have_air_condfan","d_have_balconyterrace","d_have_garden","d_have_breakfast","d_have_workoffice","d_have_childrenbabycribhighcornerchang","d_have_clothing_storage","d_luggage_dropoff_allowed","d_single_level_home")
+ammenities <- c("d_bathtub","d_beachfront","d_building_staff","d_carbon_monoxide_alarm","d_cleaning_products","d_cooking_basics","d_dining_table","d_dishes_and_silverware","d_drying_rack_for_clothing","d_elevator","d_essentials","d_extra_pillows_and_blankets","d_fire_extinguisher","d_first_aid_kit","d_hangers","d_hot_water","d_hot_water_kettle","d_laundromat_nearby","d_microwave","d_outdoor_dining_area","d_outdoor_furniture","d_private_entrance","d_roomdarkening_shades","d_safe","d_security_cameras_on_property","d_shared_pool","d_smoke_alarm","d_toaster","d_wine_glasses","d_have_kitchen","d_have_stove","d_have_oven","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_cable","d_have_tv","d_have_iron","d_have_heating","d_have_air_condfan","d_have_balconyterrace","d_have_garden","d_have_breakfast","d_have_workoffice","d_have_childrenbabycribhighcornerchang","d_luggage_dropoff_allowed","d_single_level_home")
 
 
 ```
@@ -167,7 +171,7 @@ sapply(ammenities, function(x){
 
 # Based on individual box plot for each amenity with property type, following will be interacted with property type
 
-interactions <- c("f_property_type*d_bathtub","f_property_type*d_beachfront","f_property_type*d_extra_pillows_and_blankets","f_property_type*d_hangers","f_property_type*d_hot_water_kettle","f_property_type*d_outdoor_dining_area","f_property_type*d_private_entrance","f_property_type*d_roomdarkening_shades","f_property_type*d_safe","f_property_type*d_security_cameras_on_property","f_property_type*d_shared_pool","f_property_type*d_toaster","f_property_type*d_have_kitchen","f_property_type*d_have_frige","f_property_type*d_have_o_machineee_machinecoffee","f_property_type*d_have_wifiinternet","f_property_type*d_have_cable","f_property_type*d_have_tv","f_property_type*d_have_iron","f_property_type*d_have_heating","f_property_type*d_have_balconyterrace","f_property_type*d_have_childrenbabycribhighcornerchang","f_property_type*d_have_clothing_storage")
+interactions <- c("f_property_type*d_bathtub","f_property_type*f_municipality","f_property_type*d_beachfront","f_property_type*d_extra_pillows_and_blankets","f_property_type*d_hangers","f_property_type*d_hot_water_kettle","f_property_type*d_outdoor_dining_area","f_property_type*d_private_entrance","f_property_type*d_roomdarkening_shades","f_property_type*d_safe","f_property_type*d_security_cameras_on_property","f_property_type*d_shared_pool","f_property_type*d_toaster","f_property_type*d_have_kitchen","f_property_type*d_have_frige","f_property_type*d_have_o_machineee_machinecoffee","f_property_type*d_have_wifiinternet","f_property_type*d_have_cable","f_property_type*d_have_tv","f_property_type*d_have_iron","f_property_type*d_have_heating","f_property_type*d_have_balconyterrace","f_property_type*d_have_childrenbabycribhighcornerchang")
 
 
 ```
@@ -224,7 +228,8 @@ lasso_model <- caret::train(formula,
                       trControl = train_control,
                       tuneGrid = tune_grid,
                       na.action=na.exclude)
-# Check the output
+# Check the output 
+
 lasso_model
 # Penalty parameters
 lasso_model$bestTune
@@ -247,7 +252,7 @@ lasso_coeffs_nz<-lasso_coeffs %>%
   filter(coefficient!=0)
 print(nrow(lasso_coeffs_nz))
 
-write_csv(lasso_coeffs_nz,"A2/NonZeroCoefficients.csv")
+#write_csv(lasso_coeffs_nz,"A2/NonZeroCoefficients.csv")
 
 # Get the RMSE of the Lasso model 
 #   Note you should compare this to the test RMSE
@@ -264,7 +269,7 @@ lasso_add <- tibble(Model='LASSO', Coefficients=nrow(lasso_coeffs_nz),
 ```{r}
 # modifying the list of variables to be used based on LASSO results
 
-basic_lev <- c("f_property_type","n_accommodates","n_bathrooms","n_bedrooms","n_beds","d_long_term_stays_allowed","n_ln_minimum_nights","d_essentials")
+basic_lev <- c("f_property_type","n_accommodates","f_municipality","n_bathrooms","n_bedrooms","n_beds","d_long_term_stays_allowed","n_ln_minimum_nights","d_essentials")
 
 host <- c("f_host_response_time","p_host_acceptance_rate","d_host_greets_you","d_host_identity_verified","flag_host_acceptance_rate")
 
@@ -272,7 +277,7 @@ reviews <- c("flag_review_scores_rating","flag_reviews_per_month","n_ln_number_o
 
 ammenities <- c("d_carbon_monoxide_alarm","d_cleaning_products","d_dining_table","d_dishes_and_silverware","d_elevator","d_first_aid_kit","d_outdoor_furniture","d_safe","d_security_cameras_on_property","d_smoke_alarm","d_have_kitchen","d_have_stove","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_tv","d_have_heating","d_have_breakfast","d_have_childrenbabycribhighcornerchang","d_single_level_home")
 
-interactions <- c("f_property_type*d_bathtub","f_property_type*d_beachfront","f_property_type*d_extra_pillows_and_blankets","f_property_type*d_outdoor_dining_area","f_property_type*d_private_entrance","f_property_type*d_security_cameras_on_property","f_property_type*d_have_o_machineee_machinecoffee","f_property_type*d_have_tv","f_property_type*d_have_balconyterrace","f_property_type*d_have_childrenbabycribhighcornerchang")
+interactions <- c("f_property_type*d_bathtub","f_property_type*f_municipality","f_property_type*d_beachfront","f_property_type*d_extra_pillows_and_blankets","f_property_type*d_outdoor_dining_area","f_property_type*d_private_entrance","f_property_type*d_security_cameras_on_property","f_property_type*d_have_o_machineee_machinecoffee","f_property_type*d_have_tv","f_property_type*d_have_balconyterrace","f_property_type*d_have_childrenbabycribhighcornerchang")
 ```
 
 
@@ -331,6 +336,25 @@ model_results <- rbind( model_results , lasso_add )
 model_results
 
 # As per these results, model4 is clearly over fitted as the R-squared comes out to be 1 with a negative BIC. The purpose of model4 was primarily to include all the relevant variables and use it in LASSO to identify predictors with non-zero coefficients.
+
+predictors_model3 <- c(basic_lev, reviews, host, ammenities)
+
+set.seed(111)
+system.time({
+ols_model <- train(
+  formula(paste0("price ~", paste0(predictors_model3, collapse = " + "))),
+  data = data_train,
+  method = "lm",
+  trControl = train_control
+)
+})
+
+ols_model_coeffs <-  ols_model$finalModel$coefficients
+ols_model_coeffs_df <- data.frame(
+  "variable" = names(ols_model_coeffs),
+  "ols_coefficient" = ols_model_coeffs
+) %>%
+  mutate(variable = gsub("`","",variable))
 ```
 
 ```{r}
@@ -407,19 +431,21 @@ ggplot(rf_model_var_imp_df[1:10,], aes(x=reorder(varname, imp), y=imp_percentage
 
 varnames <- rf_model$finalModel$xNames
 
+f_municipality <- grep("f_municipality",varnames, value = TRUE)
 f_host_varnames <- grep("d_host",varnames, value = TRUE)
 f_property_type_varnames <- grep("f_property_type",varnames, value = TRUE)
 f_reviews_varnames <- grep("review",varnames, value = TRUE)
 amenities_varnames <- c("d_essentials","d_carbon_monoxide_alarm","d_cleaning_products","d_dining_table","d_dishes_and_silverware","d_elevator","d_first_aid_kit","d_outdoor_furniture","d_safe","d_security_cameras_on_property","d_smoke_alarm","d_have_kitchen","d_have_stove","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_tv","d_have_heating","d_have_breakfast","d_have_childrenbabycribhighcornerchang","d_single_level_home","d_bathtub","d_beachfront","d_extra_pillows_and_blankets","d_outdoor_dining_area","d_private_entrance","d_have_balconyterrace")
 
-groups <- list(host=f_host_varnames,
-               property_type = f_property_type_varnames,
-               reviews = f_reviews_varnames,
-               amenities = amenities_varnames,
-               bathroom = "n_bathroom",
-               minimum_nights = "n_ln_minimum_nights",
-               n_accommodates = "n_accommodates",
-               n_beds = "n_beds")
+groups <- list(Municipality = f_municipality,
+               Host_Related=f_host_varnames,
+               Property_Type = f_property_type_varnames,
+               Reviews = f_reviews_varnames,
+               Amenities = amenities_varnames,
+               Bathrooms = "n_bathrooms",
+               Minimum_Nights = "n_ln_minimum_nights",
+               Number_Accommodates = "n_accommodates",
+               Beds = "n_beds")
 
 # Need a function to calculate grouped varimp
 group.importance <- function(rf.obj, groups) {
@@ -452,9 +478,9 @@ ggplot(rf_model_var_imp_grouped_df, aes(x=reorder(varname, imp), y=imp_percentag
 
 rf_model_auto_var_imp <- ranger::importance(rf_model_auto$finalModel)/1000
 rf_model_auto_var_imp_df <-
-  data.frame(varname = names(rf_model_auto_var_imp),imp = rf_model_var_imp) %>%
-  mutate(varname = gsub("f_neighbourhood_cleansed", "Borough:", varname) ) %>%
-  mutate(varname = gsub("f_room_type", "Room type:", varname) ) %>%
+  data.frame(varname = names(rf_model_auto_var_imp),imp = rf_model_auto_var_imp) %>%
+  mutate(varname = gsub("f_municipality", "Municipality: ", varname) ) %>%
+  mutate(varname = gsub("f_room_type", "Room Type:", varname) ) %>%
   arrange(desc(imp)) %>%
   mutate(imp_percentage = imp/sum(imp))
 
@@ -480,19 +506,23 @@ ggplot(rf_model_auto_var_imp_df[1:10,], aes(x=reorder(varname, imp), y=imp_perce
 
 varnames_auto <- rf_model_auto$finalModel$xNames
 
+f_municipality_auto <- grep("f_municipality",varnames, value = TRUE)
 f_host_varnames_auto <- grep("d_host",varnames_auto, value = TRUE)
 f_property_type_varnames_auto <- grep("f_property_type",varnames_auto, value = TRUE)
 f_reviews_varnames_auto <- grep("review",varnames_auto, value = TRUE)
 amenities_varnames_auto <- c("d_essentials","d_carbon_monoxide_alarm","d_cleaning_products","d_dining_table","d_dishes_and_silverware","d_elevator","d_first_aid_kit","d_outdoor_furniture","d_safe","d_security_cameras_on_property","d_smoke_alarm","d_have_kitchen","d_have_stove","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_tv","d_have_heating","d_have_breakfast","d_have_childrenbabycribhighcornerchang","d_single_level_home","d_bathtub","d_beachfront","d_extra_pillows_and_blankets","d_outdoor_dining_area","d_private_entrance","d_have_balconyterrace")
 
-groups_auto <- list(host=f_host_varnames_auto,
-               property_type = f_property_type_varnames_auto,
-               reviews = f_reviews_varnames_auto,
-               amenities = amenities_varnames_auto,
-               bathroom = "n_bathroom",
-               minimum_nights = "n_ln_minimum_nights",
-               n_accommodates = "n_accommodates",
-               n_beds = "n_beds")
+
+
+groups_auto <- list(Municipality = f_municipality_auto,
+               Host_Related=f_host_varnames_auto,
+               Property_Type = f_property_type_varnames_auto,
+               Reviews = f_reviews_varnames_auto,
+               Amenities = amenities_varnames_auto,
+               Bathrooms = "n_bathrooms",
+               Minimum_Nights = "n_ln_minimum_nights",
+               Number_Accommodates = "n_accommodates",
+               Beds = "n_beds")
 
 # Need a function to calculate grouped varimp
 group.importance <- function(rf.obj, groups_auto) {
@@ -529,5 +559,64 @@ results <- resamples(
   )
 )
 summary(results)
+```
+
+```{r}
+# CART with pruning
+
+# CART with built-in pruning
+set.seed(4321)
+system.time({
+cart_model <- train(
+  formula(paste0("price ~", paste0(predictors, collapse = " + "))),
+  data = data_train,
+  method = "rpart",
+  tuneLength = 10,
+  trControl = train_control
+)
+})
+cart_model
+
+library(rpart)
+library(rpart.plot)
+# Tree graph
+rpart.plot(cart_model$finalModel, tweak=1.2, digits=-1, extra=1)
+
+```
+
+```{r}
+ # get prediction rmse and add to next summary table
+# ---- compare these models
+
+final_models <-
+  list("OLS" = ols_model,
+  "CART" = cart_model,
+  "Random forest 1: with tuning provided" = rf_model,
+  "Random forest 2: auto tuning" = rf_model_auto)
+
+results <- resamples(final_models) %>% summary()
+
+results
+
+
+# Model selection is carried out on this CV RMSE
+result <- imap(final_models, ~{
+  mean(results$values[[paste0(.y,"~RMSE")]])
+}) %>% unlist() %>% as.data.frame() %>%
+  rename("CV RMSE" = ".")
+
+result
+
+
+
+# evaluate preferred model on the holdout set -----------------------------
+
+result_2 <- map(final_models, ~{
+  RMSE(predict(.x, newdata = data_test), data_test[["price"]])
+}) %>% unlist() %>% as.data.frame() %>%
+  rename("Holdout RMSE" = ".")
+
+result_2
+
 ```
 

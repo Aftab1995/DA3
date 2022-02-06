@@ -76,7 +76,13 @@ data <- data %>%
 
 #############################################################################
 # neighbourhood_cleansed as factors
-# the column neighbourhood was deleted from the dataset due to the rpesence of non-english words, which were being represented as Greek letters in the RStudio IDE, however, was being stored as some kind of a code at the back end due to which it was not known on how to modify the column
+# the column neighbourhood was deleted from the dataset due to the presence of non-english words, which were being represented as Greek letters in the RStudio IDE, however, was being stored as some kind of a code at the back end due to which it was not known on how to modify the column. However, the latitude and longitude of the neighborhoods is provided, hence, using longitude, we are dividing Crete into 4 larger muncipalities; Khania, Rethymnon, Heraklion, Lasithi
+
+data <- data %>%  mutate(municipality = ifelse(longitude <= 24.3, "Khania",
+                                               ifelse(longitude > 24.3 & longitude <= 24.9, "Rethymnon",
+                                                      ifelse(longitude > 24.9 & longitude <= 25.5, "Heraklion",
+                                                             ifelse(longitude > 25.5, "Lasithi","")))))
+data$f_municipality <- as.factor(data$municipality)
 #################################################################
 
 # get host_response_time as factors
@@ -365,7 +371,7 @@ ggplot(data, aes(ln_number_of_reviews)) +
 
 ```{r}
 column_names <- colnames(data)
-write.csv(column_names,"A2/column_names.csv")
+#write.csv(column_names,"A2/column_names.csv")
 
 
 data$f_property_type == data$property_type

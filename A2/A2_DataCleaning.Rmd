@@ -17,7 +17,7 @@ library(tidyverse)
 #setwd("C:/Users/Aftab/Courses/DA3/Git-DA3/DA3/A2/")
 
 # Loading data
-#data <- read_csv("listings.csv")
+data <- read_csv("A2/listings.csv")
 
 # Removing the initially loaded file
 #rm(listing_macro)
@@ -49,7 +49,6 @@ rm(to_filter)
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # Dropping columns with more than 17000 NAs
 data$host_neighbourhood = NULL
-data$neighbourhood_group_cleansed = NULL
 data$neighbourhood_group = NULL
 data$bathrooms = NULL
 data$calendar_updated = NULL
@@ -214,7 +213,7 @@ data$license = NULL
 
 # Saving cleaned data into a new RDS file
 
-#saveRDS(data, "data_cleaned.RDS")
+saveRDS(data, "A2/data_cleaned.RDS")
 
 ```
 
