@@ -354,7 +354,7 @@ ggplot(data, aes(n_number_of_reviews)) +
 
 # Number of reviews is highly skewed with a long left tail, will make sense to use the log of reviews
 data <- data %>%
-  mutate(ln_number_of_reviews = log(n_number_of_reviews+1))
+  mutate(n_ln_number_of_reviews = log(n_number_of_reviews+1))
 
 ggplot(data, aes(ln_number_of_reviews)) +
   geom_histogram(binwidth = 0.5, fill = "black",alpha = 0.8, size = 0.25) +

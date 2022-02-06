@@ -8,18 +8,8 @@ output: pdf_document
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 rm(list = ls())
 
-# Descriptive statistics and regressions
-library(caret)
-library(tidyverse)
-library(ggthemes)
-library(gridExtra)
-library(glmnet)
-library(rpart)
-library(rattle)
-library(rpart.plot)
-library(modelsummary)
-library(fixest)
 
+library(tidyverse)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -225,7 +215,6 @@ data$license = NULL
 # Saving cleaned data into a new RDS file
 
 #saveRDS(data, "data_cleaned.RDS")
-
 
 ```
 
