@@ -26,6 +26,7 @@ library(rattle)
 library(kableExtra)
 #library(ggcorrplot)
 library(modelsummary)
+library(ranger)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -329,5 +330,204 @@ for ( i in 1:4 ){
 model_results <- rbind( model_results , lasso_add )
 model_results
 
-# As per these results, model4 is clearly overfitted as the R-squared comes out to be 1 with a negative BIC
+# As per these results, model4 is clearly over fitted as the R-squared comes out to be 1 with a negative BIC. The purpose of model4 was primarily to include all the relevant variables and use it in LASSO to identify predictors with non-zero coefficients.
 ```
+
+```{r}
+# Random Forest
+
+predictors <- c(basic_lev, host, reviews, ammenities,interactions)
+
+# set tuning 
+tune_grid <- expand.grid(
+  .mtry = c(8, 10, 12),
+  .splitrule = "variance",
+  .min.node.size = c(5, 10, 15)
+)
+
+set.seed(2021)
+system.time({
+  rf_model <- train(
+    formula(paste0("price ~", paste0(predictors, collapse = " + "))),
+    data = data_train,
+    method = "ranger",
+    trControl = train_control,
+    tuneGrid = tune_grid,
+    importance = "impurity"
+  )
+})
+
+rf_model
+
+# auto tuning first - just takes too much time...
+set.seed(111)
+system.time({
+  rf_model_auto <- train(
+    formula(paste0("price ~", paste0(predictors, collapse = " + "))),
+    data = data_train,
+    method = "ranger",
+    trControl = train_control,
+    importance = "impurity"
+  )
+})
+rf_model_auto
+
+```
+
+```{r}
+##Variable Importance Plots rf_model
+
+rf_model_var_imp <- ranger::importance(rf_model$finalModel)/1000
+rf_model_var_imp_df <-
+  data.frame(varname = names(rf_model_var_imp),imp = rf_model_var_imp) %>%
+  mutate(varname = gsub("f_neighbourhood_cleansed", "Borough:", varname) ) %>%
+  mutate(varname = gsub("f_room_type", "Room type:", varname) ) %>%
+  arrange(desc(imp)) %>%
+  mutate(imp_percentage = imp/sum(imp))
+
+rf_model_var_imp_df
+
+# to have a quick look
+plot(varImp(rf_model))
+
+# have a version with top 10 vars only
+ggplot(rf_model_var_imp_df[1:10,], aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color='red', size=1) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color='red', size=0.75) +
+  ylab("Importance (Percent)") +
+  xlab("Variable Name") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_bw()
+
+##############################
+# 2) varimp plot grouped
+##############################
+# grouped variable importance - keep binaries created off factors together
+
+varnames <- rf_model$finalModel$xNames
+
+f_host_varnames <- grep("d_host",varnames, value = TRUE)
+f_property_type_varnames <- grep("f_property_type",varnames, value = TRUE)
+f_reviews_varnames <- grep("review",varnames, value = TRUE)
+amenities_varnames <- c("d_essentials","d_carbon_monoxide_alarm","d_cleaning_products","d_dining_table","d_dishes_and_silverware","d_elevator","d_first_aid_kit","d_outdoor_furniture","d_safe","d_security_cameras_on_property","d_smoke_alarm","d_have_kitchen","d_have_stove","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_tv","d_have_heating","d_have_breakfast","d_have_childrenbabycribhighcornerchang","d_single_level_home","d_bathtub","d_beachfront","d_extra_pillows_and_blankets","d_outdoor_dining_area","d_private_entrance","d_have_balconyterrace")
+
+groups <- list(host=f_host_varnames,
+               property_type = f_property_type_varnames,
+               reviews = f_reviews_varnames,
+               amenities = amenities_varnames,
+               bathroom = "n_bathroom",
+               minimum_nights = "n_ln_minimum_nights",
+               n_accommodates = "n_accommodates",
+               n_beds = "n_beds")
+
+# Need a function to calculate grouped varimp
+group.importance <- function(rf.obj, groups) {
+  var.imp <- as.matrix(sapply(groups, function(g) {
+    sum(ranger::importance(rf.obj)[g], na.rm = TRUE)
+  }))
+  colnames(var.imp) <- "MeanDecreaseGini"
+  return(var.imp)
+}
+
+rf_model_var_imp_grouped <- group.importance(rf_model$finalModel, groups)
+rf_model_var_imp_grouped_df <- data.frame(varname = rownames(rf_model_var_imp_grouped),
+                                            imp = rf_model_var_imp_grouped[,1])  %>%
+                                      mutate(imp_percentage = imp/sum(imp))
+
+ggplot(rf_model_var_imp_grouped_df, aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color='red', size=1) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color='red', size=0.7) +
+  ylab("Importance (Percent)") +   xlab("Variable Name") +
+  coord_flip() +
+  # expand=c(0,0),
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_bw()
+
+
+```
+
+```{r}
+##Variable Importance Plots rf_model_auto
+
+rf_model_auto_var_imp <- ranger::importance(rf_model_auto$finalModel)/1000
+rf_model_auto_var_imp_df <-
+  data.frame(varname = names(rf_model_auto_var_imp),imp = rf_model_var_imp) %>%
+  mutate(varname = gsub("f_neighbourhood_cleansed", "Borough:", varname) ) %>%
+  mutate(varname = gsub("f_room_type", "Room type:", varname) ) %>%
+  arrange(desc(imp)) %>%
+  mutate(imp_percentage = imp/sum(imp))
+
+rf_model_auto_var_imp_df
+
+# to have a quick look
+plot(varImp(rf_model_auto))
+
+# have a version with top 10 vars only
+ggplot(rf_model_auto_var_imp_df[1:10,], aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color='red', size=1) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color='red', size=0.75) +
+  ylab("Importance (Percent)") +
+  xlab("Variable Name") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_bw()
+
+##############################
+# 2) varimp plot grouped
+##############################
+# grouped variable importance - keep binaries created off factors together
+
+varnames_auto <- rf_model_auto$finalModel$xNames
+
+f_host_varnames_auto <- grep("d_host",varnames_auto, value = TRUE)
+f_property_type_varnames_auto <- grep("f_property_type",varnames_auto, value = TRUE)
+f_reviews_varnames_auto <- grep("review",varnames_auto, value = TRUE)
+amenities_varnames_auto <- c("d_essentials","d_carbon_monoxide_alarm","d_cleaning_products","d_dining_table","d_dishes_and_silverware","d_elevator","d_first_aid_kit","d_outdoor_furniture","d_safe","d_security_cameras_on_property","d_smoke_alarm","d_have_kitchen","d_have_stove","d_have_frige","d_have_o_machineee_machinecoffee","d_have_wifiinternet","d_have_tv","d_have_heating","d_have_breakfast","d_have_childrenbabycribhighcornerchang","d_single_level_home","d_bathtub","d_beachfront","d_extra_pillows_and_blankets","d_outdoor_dining_area","d_private_entrance","d_have_balconyterrace")
+
+groups_auto <- list(host=f_host_varnames_auto,
+               property_type = f_property_type_varnames_auto,
+               reviews = f_reviews_varnames_auto,
+               amenities = amenities_varnames_auto,
+               bathroom = "n_bathroom",
+               minimum_nights = "n_ln_minimum_nights",
+               n_accommodates = "n_accommodates",
+               n_beds = "n_beds")
+
+# Need a function to calculate grouped varimp
+group.importance <- function(rf.obj, groups_auto) {
+  var.imp <- as.matrix(sapply(groups, function(g) {
+    sum(ranger::importance(rf.obj)[g], na.rm = TRUE)
+  }))
+  colnames(var.imp) <- "MeanDecreaseGini"
+  return(var.imp)
+}
+
+rf_model_auto_var_imp_grouped <- group.importance(rf_model_auto$finalModel, groups)
+rf_model_auto_var_imp_grouped_df <- data.frame(varname = rownames(rf_model_auto_var_imp_grouped),
+                                            imp = rf_model_auto_var_imp_grouped[,1])  %>%
+                                      mutate(imp_percentage = imp/sum(imp))
+
+ggplot(rf_model_auto_var_imp_grouped_df, aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color='red', size=1) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color='red', size=0.7) +
+  ylab("Importance (Percent)") +   xlab("Variable Name") +
+  coord_flip() +
+  # expand=c(0,0),
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_bw()
+
+
+```
+
+```{r}
+# evaluate random forests 
+results <- resamples(
+  list(
+    model_1  = rf_model,
+    model_auto  = rf_model_auto
+  )
+)
+summary(results)
+```
+
