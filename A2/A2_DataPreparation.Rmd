@@ -16,7 +16,9 @@ library(Hmisc)
 
 # Loading the cleaned data
 
-data <- readRDS("A2/data_cleaned.RDS")
+#data <- readRDS("A2/data_cleaned.RDS")
+# Reading the data
+data <- readRDS(gzcon(url("https://github.com/Aftab1995/DA3/blob/main/A2/data_cleaned.RDS?raw=true")))
 
 ```
 
@@ -39,7 +41,7 @@ rm(types)
 data <- data %>%
   filter(grepl("apartment", property_type )|grepl("Entire loft", property_type )|grepl("Entire home/apt", property_type )) %>% 
   filter(!grepl("in serviced apartment", property_type))
-# We will be creating flag variables for "Entire loft" and "Entire home/apt" property types
+
 
 
 to_filter <- sapply(data, function(x) sum(is.na(x)))
@@ -162,7 +164,7 @@ colnames(data)[dnames_i] <- paste0("d_", tolower(gsub("[^[:alnum:]_]", "",dummie
 
 # keep columns if contain d_, n_, f_, p_, usd_ and some others
 data <- data %>%
-  select(matches("^d_.*|^n_.*|^f_.*|^p_.*|^usd_.*"), price, id,room_type,property_type)
+  select(matches("^d_.*|^n_.*|^f_.*|^p_.*|^usd_.*"), price, id,room_type,property_type, latitude, longitude)
 
 # with price info only
 data <- data %>%
@@ -260,7 +262,7 @@ data %>%
   group_by(n_accommodates) %>% 
   summarise(num_baths = mean(n_bathrooms, na.rm = T), min_baths = min(n_bathrooms, na.rm = T), max_baths = max(n_bathrooms, na.rm = T))
 
-#### There is only observation with NA for number of bathrooms and an apartment without a bathroom doesn's sense. Deep dive into the data suggests that the observation has an apartment that can accommodate 4 people and the average number of bathrooms for apartments with 4 is 1.03, hence we will impute this NA with the value 1
+#### There is only observation with NA for number of bathrooms and an apartment without a bathroom doesn't sense. Deep dive into the data suggests that the observation has an apartment that can accommodate 4 people and the average number of bathrooms for apartments with 4 is 1.03, hence we will impute this NA with the value 1
 
 data$n_bathrooms <- ifelse(is.na(data$n_bathrooms),1,data$n_bathrooms)
 
@@ -388,6 +390,6 @@ data$n_days_since_first_review <- NULL # Because we will be using days since las
 
 
 ```{r}
-saveRDS(data,"A2/working_dataset_greece.RDS")
+#saveRDS(data,"A2/working_dataset_greece.RDS")
 ```
 

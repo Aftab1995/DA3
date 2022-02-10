@@ -17,7 +17,8 @@ library(tidyverse)
 #setwd("C:/Users/Aftab/Courses/DA3/Git-DA3/DA3/A2/")
 
 # Loading data
-data <- read_csv("A2/listings.csv")
+#data <- read_csv("A2/listings.csv")
+data <- readRDS(gzcon(url("https://github.com/Aftab1995/DA3/blob/main/A2/data_initial.RDS?raw=true")))
 
 # Removing the initially loaded file
 #rm(listing_macro)
