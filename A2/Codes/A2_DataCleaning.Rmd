@@ -1,0 +1,221 @@
+---
+title: "Assignment 2"
+author: "Aftab"
+date: "1/31/2022"
+output: pdf_document
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list = ls())
+
+
+library(tidyverse)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+#setwd("C:/Users/Aftab/Courses/DA3/Git-DA3/DA3/A2/")
+
+# Loading data
+#data <- read_csv("A2/listings.csv")
+data <- readRDS(gzcon(url("https://github.com/Aftab1995/DA3/blob/main/A2/data_initial.RDS?raw=true")))
+
+# Removing the initially loaded file
+#rm(listing_macro)
+
+# Saving the data on the local machine as an RDS file for easy retrieval
+#saveRDS(data,"data_initial.RDS")
+
+#data <- readRDS("data_initial.RDS")
+
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+# basic data checks
+sort(unique(data$last_scraped)) # Data points were scrapped on 3 dates, "2021-12-26" "2021-12-27" "2021-12-28". We will only keep "2021-12-26"
+sum(rowSums(is.na(data)) == ncol(data)) # no only NA rows
+nrow(data[duplicated(data),]) #  no duplicates 
+
+# where do we have missing variables now?
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 4900] # There are 20 columns with 4900 plus missing rows, however, we will look for columns with at least 10000 rows missing to delete them
+
+to_filter[to_filter > 10000] # There 5 columns with 17000 plus missing rows which we will drop in the next chunk
+# The rest we are keeping to see how they will turn out after data cleaning and drilling down to apartments with 2-6 people 
+
+rm(to_filter)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Dropping columns with more than 17000 NAs
+data$host_neighbourhood = NULL
+data$neighbourhood_group = NULL
+data$bathrooms = NULL
+data$calendar_updated = NULL
+
+
+#data <- subset(data, data$last_scraped == "2021-12-26") # keeping the data scrapped as of 26th December 2021
+
+# Dropping unnecessary columns
+drops <- c("listing_url",
+           "last_scraped",
+           "scrape_id",
+           "name",
+           "description",
+           "neighborhood_overview",
+           "picture_url",
+           "host_url",
+           "host_location",
+           "host_about",
+           "host_thumbnail_url",
+           "host_picture_url",
+           "host_total_listings_count",
+           "minimum_minimum_nights", "minimum_maximum_nights", "minimum_nights_avg_ntm",
+           "maximum_minimum_nights", "maximum_maximum_nights", "maximum_nights_avg_ntm",
+           "number_of_reviews_ltm", "number_of_reviews_l30d",
+           "calculated_host_listings_count_entire_homes", 
+           "calculated_host_listings_count_private_rooms", 
+           "calculated_host_listings_count_shared_rooms")
+
+data <- data[ , !(names(data) %in% drops)]
+
+
+#write_rds(data,"data_raw.RDS")
+
+# dropping broken lines - where id is not a character of numbers
+data$junk<-grepl("[[:alpha:]]", data$id)
+data<-subset(data,data$junk==FALSE)
+data$junk <- NULL
+
+# displaying the class and type of each columns
+sapply(data, class)
+sapply(data, typeof)
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Data Cleaning
+
+# Removing percentage signs
+for (i in c("host_response_rate","host_acceptance_rate")){
+  data[[i]]<-as.numeric(gsub("%","",as.character(data[[i]])))
+}
+
+# Removing dollar signs from price variables
+for (i in 1:nrow(data)){
+  data$price[i] <- as.numeric(gsub("\\$","",as.character(data$price[i])))
+}
+
+data$price <- as.numeric(data$price)
+
+# Formatting binary variables
+for (i in c("host_is_superhost","host_has_profile_pic","host_identity_verified", "has_availability", "instant_bookable")){
+  data[[i]][data[[i]]=="f"] <- 0
+  data[[i]][data[[i]]=="t"] <- 1
+}
+
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSEr}
+
+# Cleaning the Amenities column and creating new binary columns out of it
+# Amenities
+data$amenities<-gsub("\\[","",data$amenities)
+data$amenities<-gsub("\\]","",data$amenities)
+data$amenities<-gsub('\\"',"",data$amenities)
+data$amenities<-as.list(strsplit(data$amenities, ","))
+
+# Defining levels and dummies 
+levs <- levels(factor(unlist(data$amenities)))
+data<-cbind(data,as.data.frame(do.call(rbind, lapply(lapply(data$amenities, factor, levs), table))))
+
+drops <- c("amenities","translation missing: en.hosting_amenity_49",
+           "translation missing: en.hosting_amenity_50")
+data<-data[ , !(names(data) %in% drops)]
+
+# Creating a data frame of all the amenities
+ams <- data %>% select(-(1:46))
+
+
+# Deleting spaces in the beginning and end of the column names, and converting all to lowercase
+names(ams) <- gsub(" ","_", tolower(trimws(names(ams))))
+
+# Looking at the column names we have
+levs <- sort(names(ams))
+
+
+# Merging all the columns with the same column name
+ams <- as.data.frame(do.call(cbind, by(t(ams), INDICES= names(ams),FUN=colSums)))
+
+
+# list of key words to merge together
+cat <- c( "kitchen", "stove", "oven", "frige","o_machine|ee_machine|coffee", "gril",
+         "free.*on_premises", "free.*street", "paid.*on_premis|valet", "paid.*off_premises|self-parking|parking",
+         "wifi|internet", "netflix|tv.*netflix", "cable", "tv", "sound_system",
+         "toiletries", "shampoo|conditioner", "body_soap|gel", "hair_dryer", "washer", "dryer", "iron",  
+         "heating", "air_cond|fan", "balcony|terrace", "garden",
+         "onsite_bar|restaurant", "breakfast",  "work|office", "spa",  "fitness|gym",  
+         "children|baby|crib|high|corner|chang", "smoking", "housekeeping", "fireplace", "clothing_storage"
+         )
+
+# function to merge columns with the same key word in them
+for (i in cat) {
+  tdata <- ams %>% select(matches(i))
+
+  ams$new_col <- ifelse(rowSums(tdata)>0, 1, 0)
+  
+  names(ams)[names(ams) == "new_col"] <- paste0("have_", i)
+  
+  ams <- ams %>% select(-colnames(tdata)) 
+  
+} 
+
+# keep only columns where the percentage of 1s is at least 1% and at most 99%
+selected <- sapply(names(ams), function(x){
+  ratio <- sum(ams[[x]])/nrow(ams)*100
+  if (between(ratio, 1, 99)) {
+    return(TRUE)
+  } else { return(FALSE) }
+})
+
+amenities <- ams[,selected]
+
+data <- data %>% select((1:46))
+  
+data <- cbind(data, amenities)
+
+# Removing unnecesary items
+rm(amenities)
+rm(ams)
+rm(tdata)
+rm(cat)
+rm(drops)
+rm(levs)
+rm(selected)
+rm(i)
+rm(perc)
+
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Dropping more unnecessary columns
+
+data$host_name = NULL
+data$host_verifications = NULL
+data$neighbourhood_cleansed = NULL
+data$amenities = NULL
+data$license = NULL
+
+
+# Saving cleaned data into a new RDS file
+
+saveRDS(data, "A2/data_cleaned.RDS")
+
+```
+
+

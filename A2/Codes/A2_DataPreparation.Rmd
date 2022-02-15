@@ -1,0 +1,395 @@
+---
+title: "A2_DataPreparation"
+author: "Aftab"
+date: "2/3/2022"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(stargazer)
+library(Hmisc)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Loading the cleaned data
+
+#data <- readRDS("A2/data_cleaned.RDS")
+# Reading the data
+data <- readRDS(gzcon(url("https://github.com/Aftab1995/DA3/blob/main/A2/data_cleaned.RDS?raw=true")))
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Filtering data as per the project requirement
+
+# keep if accommodates 2-6 people
+data <- data[data$accommodates >= 2 & data$accommodates <= 6,]
+
+
+# Checking for different property types
+types <- data %>% group_by(property_type) %>% 
+  summarise(number = n()) %>% 
+  arrange(.,-number)
+
+rm(types)
+
+# keep if property type is Apartment which will give us our final data       
+data <- data %>%
+  filter(grepl("apartment", property_type )|grepl("Entire loft", property_type )|grepl("Entire home/apt", property_type )) %>% 
+  filter(!grepl("in serviced apartment", property_type))
+
+
+
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+
+```
+
+
+```{r}
+# Cleaning variables
+#### FACTORS
+#
+# Property type as factor
+data %>% 
+  group_by(property_type) %>% 
+  summarise(cnt = n()) %>% 
+  arrange(-cnt)
+ 
+
+data <- data %>% 
+  mutate( f_property_type = factor(property_type))
+
+
+# Room type as factor
+data %>% 
+  group_by(room_type) %>% 
+  summarise(cnt = n())
+
+
+data <- data[data$room_type != "Hotel room",]
+
+data <- data %>%
+  mutate(f_room_type = factor(room_type))
+
+#############################################################################
+# neighbourhood_cleansed as factors
+# the column neighbourhood was deleted from the dataset due to the presence of non-english words, which were being represented as Greek letters in the RStudio IDE, however, was being stored as some kind of a code at the back end due to which it was not known on how to modify the column. However, the latitude and longitude of the neighborhoods is provided, hence, using longitude, we are dividing Crete into 4 larger muncipalities; Khania, Rethymnon, Heraklion, Lasithi
+
+data <- data %>%  mutate(municipality = ifelse(longitude <= 24.3, "Khania",
+                                               ifelse(longitude > 24.3 & longitude <= 24.9, "Rethymnon",
+                                                      ifelse(longitude > 24.9 & longitude <= 25.5, "Heraklion",
+                                                             ifelse(longitude > 25.5, "Lasithi","")))))
+data$f_municipality <- as.factor(data$municipality)
+#################################################################
+
+# get host_response_time as factors
+data <- data %>% 
+  mutate(f_host_response_time = factor(host_response_time, levels = c( "within an hour",  "within a few hours",
+                                                                       "within a day", "a few days or more")))
+```
+
+```{r}
+
+#### NUMERIC VARIABLES
+#
+## Create Numerical variables
+data <- data %>%  mutate( p_host_response_rate = as.numeric(host_response_rate),
+          p_host_acceptance_rate = as.numeric(host_acceptance_rate))
+
+# clean number of bathrooms
+data <- data %>% rename(bathrooms = bathrooms_text)
+# get the number of baths from bathroom_text
+data$bathrooms <- as.numeric(gsub("[^0-9.-]", "", gsub("half", 0.5, data$bathrooms, ignore.case = T)))
+
+unique(data$bathrooms)
+
+# add new numeric columns from certain columns
+numericals <- c("accommodates","bathrooms", "bedrooms", "beds", "review_scores_rating","number_of_reviews",
+                "reviews_per_month","minimum_nights", "availability_365")
+data <- data %>%
+  mutate_at(vars(numericals), funs("n"=as.numeric))
+
+
+# rename columns so they start with n_ as opposed to end with _n
+nnames <- data %>%
+  select(ends_with("_n")) %>%
+  names()
+nnames_i <- match(nnames, colnames(data))
+colnames(data)[nnames_i] <- paste0("n_", numericals)
+
+
+#create days since last review
+data <- data %>%
+  mutate(
+    n_days_since_last_review = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
+                                as.Date(last_review ,format="%Y-%m-%d")))
+
+# creating days sincce the host first joined
+
+data <- data %>%
+  mutate(
+    n_days_since_host = as.numeric(as.Date(calendar_last_scraped,format="%Y-%m-%d") -
+                                as.Date(host_since ,format="%Y-%m-%d")))
+
+```
+
+```{r}
+
+#### DUMMY VARIABLES
+#
+# create dummy vars
+dummies <- c(names(data)[seq(42,133)],"host_is_superhost", "host_identity_verified" )
+data <- data %>%
+  mutate_at(vars(dummies), funs("d"= (.)))
+
+# rename columns
+dnames <- data %>%
+  select(ends_with("_d")) %>%
+  names()
+dnames_i <- match(dnames, colnames(data))
+colnames(data)[dnames_i] <- paste0("d_", tolower(gsub("[^[:alnum:]_]", "",dummies)))
+
+```
+
+```{r}
+
+
+
+# Creating the working dataset
+
+# keep columns if contain d_, n_, f_, p_, usd_ and some others
+data <- data %>%
+  select(matches("^d_.*|^n_.*|^f_.*|^p_.*|^usd_.*"), price, id,room_type,property_type, latitude, longitude)
+
+# with price info only
+data <- data %>%
+  drop_na(price)
+
+
+```
+
+```{r}
+
+##################################
+# Understanding the data
+library(ggplot2)
+
+## Price
+
+summary(data$price)
+describe(data$price)
+
+ggplot(data) +
+  geom_histogram(aes(price))
+
+# It looks like there are only two observations with a price tag of around $400 and $600, both being extreme values. The logic could be that these apartments could be large in size but since our firm is focusing on mid-sized and small-sized apartments, we will focus on properties with price tag of less than $300
+
+# filter out really high extreme values
+data <- data %>%
+  filter(price <300)
+
+ggplot(data) +
+  geom_density(aes(price))
+
+# limiting the price to below $300 dollars gives us a distribution closer to a normal distribution, hence no need to take the log of prices for our analysis purpose
+# No missing values in the price column
+
+```
+
+```{r}
+#### n_accommodates
+describe(data$n_accommodates)
+# No missing values
+data %>%
+  group_by(n_accommodates) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+ggplot(data, aes(n_accommodates)) +
+  geom_histogram(binwidth = 0.5, fill = "cyan4", color = "white", alpha = 0.8, size = 0.25) +
+  xlab("Number of people accomodated") +
+  ggthemes::theme_economist()
+
+ggplot(data, aes(x=n_accommodates, y=price)) +
+  geom_point(size=1, colour="cyan4", shape=16, alpha = 0.6)+
+  geom_smooth(method="loess", colour="darkmagenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3","4","5","6", "7"))+
+  ggthemes::theme_economist()
+# The relationship between number of people accommodated and price seems to be linear, hence we will use linear version of the variable
+
+price_accomodates <- ggplot(data, aes(x=n_accommodates, y=price)) +
+  geom_point(size=1, colour="black", shape=16, alpha = 0.6)+
+  geom_smooth(method="lm",formula = y~x, colour="magenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3","4","5","6"))+
+  ggthemes::theme_economist()
+
+price_accomodates
+```
+
+```{r}
+# checking to see which columns have missing values
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+```
+
+```{r}
+
+## n_bathrooms
+ggplot(data, aes(n_bathrooms)) +
+  geom_histogram(binwidth = 0.5, fill = "cyan4", color = "white", alpha = 1) +
+  xlab("N of bathrooms") +
+  ggthemes::theme_economist()
+
+# Checking to see the association between n_bathrooms and price
+
+# The relationship between number of bathrooms and price seems to be linear, hence we will use linear version of the variable
+
+price_bathrooms <- ggplot(data, aes(x=n_bathrooms, y=price)) +
+  geom_point(size=1, colour="black", shape=16, alpha = 0.6)+
+  geom_smooth(method="lm",formula = y~x, colour="magenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3"))+
+  ggthemes::theme_economist()
+
+# check number of beds for different number of accommodates
+data %>% 
+  group_by(n_accommodates) %>% 
+  summarise(num_baths = mean(n_bathrooms, na.rm = T), min_baths = min(n_bathrooms, na.rm = T), max_baths = max(n_bathrooms, na.rm = T))
+
+#### There is only observation with NA for number of bathrooms and an apartment without a bathroom doesn't sense. Deep dive into the data suggests that the observation has an apartment that can accommodate 4 people and the average number of bathrooms for apartments with 4 is 1.03, hence we will impute this NA with the value 1
+
+data$n_bathrooms <- ifelse(is.na(data$n_bathrooms),1,data$n_bathrooms)
+
+```
+
+```{r}
+## n_bedrooms and n_beds
+data %>%
+  group_by(n_bedrooms) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n(), median_accommodates = median(n_accommodates))
+
+data %>%
+  group_by(n_beds) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n(), median_accommodates = median(n_accommodates))
+
+
+# check number of bedrooms for different number of accommodates
+data %>% 
+  group_by(n_accommodates) %>% 
+  summarise(num_bedrooms = mean(n_bedrooms, na.rm = T), min_bedrooms = min(n_bedrooms, na.rm = T), max_bedrooms = max(n_beds, na.rm = T))
+
+data <- data %>% 
+  mutate(d_flag_bedrooms = ifelse(is.na(n_bedrooms), 1, 0))
+
+
+# There are 89 observations in with NA values. Looking at the median accommodates for the NA is 3, which also is the same as median accommodates for n_bedrooms = 1. Hence, we will take the number of accommodates and divide it by 2, round it up to the nearest integer to get the number of bedrooms. This is also because the median number of accommodates is twice the number of median bedrooms in the dataset. This number will be used to impute the values for NAs in the n_bedrooms. The same logic also applies to the number of beds in  an apartment. 
+
+data <- data %>%
+  mutate(
+    n_beds = ifelse(is.na(n_beds), round(n_accommodates / 2), n_beds), #assume that 1 bed corresponds to about 2 accommodates
+    n_bedrooms = ifelse(is.na(n_bedrooms), round(n_accommodates / 2), n_bedrooms),) #assume that bedrooms correlate to around half the number of accommodates
+
+# The relationship between number of people accommodated and price seems to be linear, hence we will use linear version of the variable
+
+price_bedrooms <- ggplot(data, aes(x=n_bedrooms, y=price)) +
+  geom_point(size=1, colour="black", shape=16, alpha = 0.6)+
+  geom_smooth(method="lm",formula = y~x, colour="magenta", se=FALSE)+
+  labs(x= "Number of people accomodated",y="Price")+
+  scale_x_discrete( limits = c("1", "2","3"))+
+  ggthemes::theme_economist()
+
+```
+
+```{r}
+
+# checking to see which columns have missing values
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+
+```
+
+```{r}
+
+data <- data %>%
+  mutate(
+    flag_review_scores_rating = ifelse(is.na(n_review_scores_rating),1, 0),
+    n_review_scores_rating =  ifelse(is.na(n_review_scores_rating), median(n_review_scores_rating, na.rm = T), n_review_scores_rating),
+    
+    flag_host_acceptance_rate = ifelse(is.na(p_host_acceptance_rate),1, 0),
+    p_host_acceptance_rate =  ifelse(is.na(p_host_acceptance_rate), median(p_host_acceptance_rate, na.rm = T), p_host_acceptance_rate),
+    
+    flag_host_response_rate = ifelse(is.na(p_host_response_rate),1, 0),
+    p_host_response_rate =  ifelse(is.na(p_host_response_rate), median(p_host_response_rate, na.rm = T), p_host_response_rate),
+    
+    flag_host_response_time = ifelse(is.na(f_host_response_time),1, 0),
+    f_host_response_time =  ifelse(is.na(f_host_response_time), "missing", f_host_response_time),
+    
+    flag_days_since_last_review = ifelse(is.na(n_days_since_last_review),1, 0),
+    n_days_since_last_review =  ifelse(is.na(n_days_since_last_review), median(n_days_since_last_review, na.rm = T), n_days_since_last_review),
+        
+    flag_reviews_per_month = ifelse(is.na(n_reviews_per_month),1, 0),
+   n_reviews_per_month =  ifelse(is.na(n_reviews_per_month), median(n_reviews_per_month, na.rm = T), n_reviews_per_month)
+  )
+table(data$f_host_response_time)
+
+# The above created flag variables have values close to zero, which may suggest that the missing values are at random. After creating the flag variables, we have replaced the missing values with median for numeric columns and with missing for non-numeric
+
+# where do we have missing values now?
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+
+```
+
+
+```{r}
+
+# look at some cnts. key vars, functional form #
+## n_accomodates: look at distribution
+
+
+## Number of reviews
+
+ggplot(data, aes(n_number_of_reviews)) +
+  geom_histogram(binwidth = 5, fill = "black", alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("N of reviews")
+
+# Number of reviews is highly skewed with a long left tail, will make sense to use the log of reviews
+data <- data %>%
+  mutate(n_ln_number_of_reviews = log(n_number_of_reviews+1))
+
+ggplot(data, aes(ln_number_of_reviews)) +
+  geom_histogram(binwidth = 0.5, fill = "black",alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("Log N of reviews") 
+
+```
+
+```{r}
+column_names <- colnames(data)
+#write.csv(column_names,"A2/column_names.csv")
+
+
+data$f_property_type == data$property_type
+data$f_room_type == data$room_type
+#Deleting repetitive columns
+data$property_type <- NULL
+data$room_type <- NULL
+
+#deleting columns which we think are not required
+data$n_days_since_first_review <- NULL # Because we will be using days since last review - days since first review
+
+
+```
+
+
+```{r}
+#saveRDS(data,"A2/working_dataset_greece.RDS")
+```
+

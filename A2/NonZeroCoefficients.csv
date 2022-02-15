@@ -1,0 +1,51 @@
+variable,coefficient
+(Intercept),69.7686375321337
+f_property_typeEntire serviced apartment,-2.7120057745142443
+n_accommodates,11.531177235320449
+n_bathrooms,5.588896540348886
+n_beds,-2.084564103039551
+d_long_term_stays_allowed,0.581113806046941
+n_ln_minimum_nights,-0.8410300686267429
+n_reviews_per_month,-1.228636973875108
+flag_review_scores_rating,1.634402762566205
+flag_days_since_last_review,2.3800255787174103e-4
+flag_reviews_per_month,1.657954424861154e-5
+n_ln_number_of_reviews,-2.4259983629426647
+f_host_response_time2,-3.759236621653116
+f_host_response_time4,-1.8815669375046542
+p_host_acceptance_rate,4.322560816354958
+d_host_greets_you,2.5492500124567545
+d_host_identity_verified,3.569099456977397
+flag_host_acceptance_rate,0.9140781917630184
+d_carbon_monoxide_alarm,-1.4476879910952183
+d_cleaning_products,-0.4654856680934328
+d_dining_table,0.06595066154920762
+d_dishes_and_silverware,-3.4479640962912788
+d_elevator,1.735834502242276
+d_essentials,1.633942121558125
+d_first_aid_kit,1.074679760433121
+d_outdoor_furniture,-2.710969245216289
+d_safe,-0.708413813627871
+d_security_cameras_on_property,-0.009253762034482513
+d_smoke_alarm,2.24688013588002
+d_have_kitchen,-2.3468440172459784
+d_have_stove,0.14378568371090486
+d_have_frige,-1.6928075400184446
+d_have_o_machineee_machinecoffee,1.6803725459838117
+d_have_wifiinternet,0.5024710884941619
+d_have_tv,6.819897563669565
+d_have_heating,2.119895445981383
+d_have_breakfast,1.7834110724469794
+d_have_childrenbabycribhighcornerchang,0.9382058606464786
+d_single_level_home,-1.8821117127664537
+f_property_typeEntire serviced apartment:d_bathtub,-1.4802037271684094
+f_property_typeEntire serviced apartment:d_beachfront,2.631797169020403
+f_property_typeEntire loft:d_extra_pillows_and_blankets,-1.8167989316269433
+f_property_typeEntire loft:d_outdoor_dining_area,-0.708418432474008
+f_property_typeEntire serviced apartment:d_outdoor_dining_area,2.6219554752600054
+f_property_typeEntire serviced apartment:d_private_entrance,-0.018428674932752926
+f_property_typeEntire serviced apartment:d_security_cameras_on_property,-0.38358586499231095
+f_property_typeEntire serviced apartment:d_have_o_machineee_machinecoffee,0.39567594067645206
+f_property_typeEntire loft:d_have_tv,-0.8547011708639545
+f_property_typeEntire serviced apartment:d_have_balconyterrace,-0.7346524325521504
+f_property_typeEntire serviced apartment:d_have_childrenbabycribhighcornerchang,0.6249796736780727
