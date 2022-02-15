@@ -74,8 +74,8 @@ data <- data %>%
   filter(!(sales_mil > 10)) %>%
   filter(!(sales_mil < 0.001))
 
-# Keep only firms with data for the 3 years
-data <- data %>% group_by(comp_id) %>% filter(n() == 4)
+# Keep only firms with data for the 6 years
+data <- data %>% group_by(comp_id) %>% filter(n() == 6)
 
 # Change in sales
 data <- data %>%
@@ -137,3 +137,58 @@ describe(data$fast_growth)
 data <- data %>%
   mutate(age = (year - founded_year))
 
+###########################################################
+# Feature engineering
+###########################################################
+
+# change some industry category codes
+data <- data %>%
+  mutate(ind2_cat = ind2 %>%
+           ifelse(. > 56, 60, .)  %>%
+           ifelse(. < 26, 20, .) %>%
+           ifelse(. < 55 & . > 35, 40, .) %>%
+           ifelse(. == 31, 30, .) %>%
+           ifelse(is.na(.), 99, .)
+  )
+
+table(data$ind2_cat)
+
+# Firm characteristics
+data <- data %>%
+  mutate(age2 = age^2,
+         foreign_management = as.numeric(foreign >= 0.5),
+         gender_m = factor(gender, levels = c("female", "male", "mix")),
+         m_region_loc = factor(region_m, levels = c("Central", "East", "West")))
+
+###########################################################
+# look at more financial variables, create ratios
+###########################################################
+
+# assets can't be negative. Change them to 0 and add a flag.
+data <-data  %>%
+  mutate(flag_asset_problem=ifelse(intang_assets<0 | curr_assets<0 | fixed_assets<0,1,0  ))
+table(data$flag_asset_problem)
+
+data <- data %>%
+  mutate(intang_assets = ifelse(intang_assets < 0, 0, intang_assets),
+         curr_assets = ifelse(curr_assets < 0, 0, curr_assets),
+         fixed_assets = ifelse(fixed_assets < 0, 0, fixed_assets))
+
+# generate total assets
+data <- data %>%
+  mutate(total_assets_bs = intang_assets + curr_assets + fixed_assets)
+summary(data$total_assets_bs)
+
+
+pl_names <- c("extra_exp","extra_inc",  "extra_profit_loss", "inc_bef_tax" ,"inventories",
+              "material_exp", "profit_loss_year", "personnel_exp")
+bs_names <- c("intang_assets", "curr_liab", "fixed_assets", "liq_assets", "curr_assets",
+              "share_eq", "subscribed_cap", "tang_assets" )
+
+# divide all pl_names elements by sales and create new column for it
+data <- data %>%
+  mutate_at(vars(pl_names), funs("pl"=./sales))
+
+# divide all bs_names elements by total_assets_bs and create new column for it
+data <- data %>%
+  mutate_at(vars(bs_names), funs("bs"=ifelse(total_assets_bs == 0, 0, ./total_assets_bs)))
