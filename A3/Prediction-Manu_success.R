@@ -61,7 +61,13 @@ create_output_if_doesnt_exist(output)
 ########################################################
 
 # Load the data
-data <- readRDS(gzcon(url("https://github.com/Aftab1995/DA3/blob/main/A3/bisnode_firms_clean.rds?raw=true")))
+# data <- readRDS(gzcon(url("https://github.com/Aftab1995/DA3/blob/main/A3/bisnode_firms_clean.rds?raw=true")))
+
+data <- read_rds("https://github.com/Aftab1995/DA3/blob/main/A3/bisnode_firms_clean.rds?raw=true")
+
+# sub-setting industry 
+
+data <- data %>% filter(ind2 >= 26 & ind2 <= 33)
 
 
 # Define variable sets -----------------------------------------------------------------------
@@ -148,30 +154,27 @@ ggplot(data=data, aes(x=sales_mil_log)) +
 
 # separate datasets  (train and holdout) -------------------------------------------------------
 
-# set.seed(2738)
+ # set.seed(2738)
+ # 
+ # train_indices <- as.integer(createDataPartition(data$fast_growth, p = 0.8, list = FALSE))
+ # data_train <- data[train_indices, ]
+ # data_holdout <- data[-train_indices, ]
+ # 
+ # dim(data_train)
+ # dim(data_holdout)
+ # 
+ # Hmisc::describe(data$fast_growth_f)
+ # Hmisc::describe(data_train$fast_growth_f)
+ # Hmisc::describe(data_holdout
+ #                 $fast_growth_f)
 # 
-# train_indices <- as.integer(createDataPartition(data$fast_growth, p = 0.8, list = FALSE))
-# data_train <- data[train_indices, ]
-# data_holdout <- data[-train_indices, ]
-# 
-# dim(data_train)
-# dim(data_holdout)
-# 
-# Hmisc::describe(data$fast_growth_f)
-# Hmisc::describe(data_train$fast_growth_f)
-# Hmisc::describe(data_holdout
-#                 $fast_growth_f)
-# 
-# saveRDS(data_train,"data_train.RDS")
-# saveRDS(data_holdout,"data_holdout.RDS")
+#  saveRDS(data_train,"data_train_m.RDS")
+#  saveRDS(data_holdout,"data_holdout_m.RDS")
 
 
-data_train$ind2
-data_train <- readRDS("data_train.RDS")
-data_train <- data_train %>% filter(ind2 >= 26 & ind2 <= 33)
-#
-data_holdout <-readRDS("data_holdout.RDS")
-data_holdout <-  data_holdout %>% filter(ind2 >= 26 & ind2 <= 33)
+
+data_train <- readRDS("data_train_m.RDS")
+data_holdout <-readRDS("data_holdout_m.RDS")
 
 
 # The proportion of fast growth firms are really similar in all the sets, around 11%
