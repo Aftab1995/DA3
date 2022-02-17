@@ -75,6 +75,7 @@ Based on our prediction models, the best model has been the random forest model 
 
 Moreover, our analysis suggests that training the best model on specific industry dataset is better when making classification models compared to training the model on one larger dataset that contains multiple industries. This makes sense in the real world as well where models are trained on same types of companies to make better predictions.However, to check for external validity, we highly recommend running these models on a different time periods than 2012-2014 time, perhaps checking multiple periods would be wise, such 2013-2015, 2014-2016 etc. Additional to this, we would suggest collecting more observations on industry specific small and medium sized firms separately and running this prediction exercise. Perhaps that would give focused results, helping the investment company further.
 
+[Link to RMD codes - GITHUB](https://github.com/Aftab1995/DA3/tree/main/A3)
 
 
 
